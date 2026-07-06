@@ -35,9 +35,13 @@ export const Relation = z.object({
   /** Stable identifier for this edge (used as the diagram edge id). */
   name: z.string().min(1),
   fromTable: z.string().min(1),
-  fromColumns: z.array(z.string().min(1)).min(1),
+  /**
+   * Owning-side FK columns. Empty for implicit many-to-many relations, which
+   * are backed by a join table Prisma manages and expose no scalar FK.
+   */
+  fromColumns: z.array(z.string().min(1)),
   toTable: z.string().min(1),
-  toColumns: z.array(z.string().min(1)).min(1),
+  toColumns: z.array(z.string().min(1)),
   cardinality: Cardinality,
 });
 export type Relation = z.infer<typeof Relation>;
