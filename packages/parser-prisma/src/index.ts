@@ -49,6 +49,10 @@ interface DmmfModel {
   name: string;
   documentation?: string;
   fields: DmmfField[];
+  /** Composite primary key `@@id([...])`, if any. */
+  primaryKey?: { fields: string[] } | null;
+  /** Composite unique constraints `@@unique([...])`. */
+  uniqueFields?: string[][];
 }
 
 interface DmmfEnum {
@@ -69,7 +73,7 @@ function renderDefault(field: DmmfField): string | null {
 }
 
 /** Map a scalar/enum field to an IR column. Returns null for relation fields. */
-function toColumn(field: DmmfField, foreignKeyNames: Set<string>): Column | null {
+function toColumn(field: DmmfField): Column | null {
   if (field.kind === "object") return null;
   return {
     name: field.name,
@@ -83,12 +87,8 @@ function toColumn(field: DmmfField, foreignKeyNames: Set<string>): Column | null
 }
 
 function toTable(model: DmmfModel): Table {
-  const fkNames = new Set<string>();
-  for (const f of model.fields) {
-    for (const c of f.relationFromFields ?? []) fkNames.add(c);
-  }
   const columns = model.fields
-    .map((f) => toColumn(f, fkNames))
+    .map((f) => toColumn(f))
     .filter((c): c is Column => c !== null);
   return { name: model.name, columns, comment: model.documentation ?? null };
 }
@@ -166,23 +166,38 @@ function extractRelations(models: DmmfModel[]): Relation[] {
 }
 
 /**
- * Refine 1:1 vs 1:N. A relation whose FK column set is unique on the owning
- * table is one-to-one; otherwise one-to-many.
+ * Refine 1:1 vs 1:N. A relation is one-to-one when the owning-side FK columns
+ * are guaranteed unique — either each column is individually unique/PK, or the
+ * FK column set exactly matches a composite unique constraint (`@@unique`) or a
+ * composite primary key (`@@id`). Otherwise it is one-to-many.
  */
 function refineCardinality(relations: Relation[], models: DmmfModel[]): Relation[] {
-  const uniqueCols = new Map<string, Set<string>>();
+  const singleUnique = new Map<string, Set<string>>();
+  const compositeUnique = new Map<string, string[][]>();
   for (const m of models) {
     const set = new Set<string>();
     for (const f of m.fields) {
       if ((f.isUnique || f.isId) && f.kind !== "object") set.add(f.name);
     }
-    uniqueCols.set(m.name, set);
+    singleUnique.set(m.name, set);
+
+    const composites: string[][] = [...(m.uniqueFields ?? [])];
+    if (m.primaryKey?.fields?.length) composites.push(m.primaryKey.fields);
+    compositeUnique.set(m.name, composites);
   }
+
+  const sameSet = (a: string[], b: string[]): boolean =>
+    a.length === b.length && a.every((x) => b.includes(x)) && b.every((x) => a.includes(x));
+
   return relations.map((r): Relation => {
     if (r.cardinality === "many-to-many" || r.fromColumns.length === 0) return r;
-    const uniques = uniqueCols.get(r.fromTable);
-    const isOneToOne =
-      uniques !== undefined && r.fromColumns.every((c) => uniques.has(c));
+    const singles = singleUnique.get(r.fromTable);
+    const allSinglesUnique =
+      singles !== undefined && r.fromColumns.every((c) => singles.has(c));
+    const matchesComposite = (compositeUnique.get(r.fromTable) ?? []).some((set) =>
+      sameSet(set, r.fromColumns),
+    );
+    const isOneToOne = allSinglesUnique || matchesComposite;
     return { ...r, cardinality: isOneToOne ? "one-to-one" : "one-to-many" };
   });
 }

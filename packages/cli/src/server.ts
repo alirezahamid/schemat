@@ -49,7 +49,14 @@ export async function startServer(initial: IRSchema, port: number): Promise<Sche
     socket.on("close", () => clients.delete(socket));
   });
 
-  await new Promise<void>((resolve) => httpServer.listen(port, resolve));
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: Error) => reject(err);
+    httpServer.once("error", onError);
+    httpServer.listen(port, () => {
+      httpServer.removeListener("error", onError);
+      resolve();
+    });
+  });
 
   return {
     port,
@@ -87,8 +94,15 @@ async function handleHttp(
   distDir: string,
   indexHtml: string,
 ): Promise<void> {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  const pathname = decodeURIComponent(url.pathname);
+  let pathname: string;
+  try {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    res.statusCode = 400;
+    res.end("bad request");
+    return;
+  }
 
   if (pathname === "/" || pathname === "/index.html") {
     res.setHeader("Content-Type", HTML_MIME);
@@ -96,9 +110,12 @@ async function handleHttp(
     return;
   }
 
-  // Prevent path traversal: resolve against distDir and ensure containment.
-  const resolved = path.join(distDir, pathname);
-  if (!resolved.startsWith(distDir)) {
+  // Prevent path traversal: resolve against distDir and verify the result stays
+  // inside it using a path-boundary-aware check (startsWith alone is unsafe:
+  // "/dist-evil" starts with "/dist").
+  const resolved = path.resolve(distDir, `.${pathname}`);
+  const rel = path.relative(distDir, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
     res.statusCode = 403;
     res.end("forbidden");
     return;

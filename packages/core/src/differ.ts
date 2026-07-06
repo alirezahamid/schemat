@@ -1,4 +1,4 @@
-import type { Column, IRSchema } from "./ir";
+import type { Column, IRSchema, Relation } from "./ir";
 
 /** A single structural change between two schema versions. */
 export type SchemaChange =
@@ -14,7 +14,13 @@ export type SchemaChange =
       after: string;
     }
   | { kind: "relation.added"; name: string }
-  | { kind: "relation.removed"; name: string };
+  | { kind: "relation.removed"; name: string }
+  | {
+      kind: "relation.changed";
+      name: string;
+      before: string;
+      after: string;
+    };
 
 function columnSignature(col: Column): string {
   const parts = [col.type];
@@ -23,6 +29,15 @@ function columnSignature(col: Column): string {
   if (col.isUnique) parts.push("unique");
   if (col.default !== null) parts.push(`default=${col.default}`);
   return parts.join(" ");
+}
+
+function relationSignature(rel: Relation): string {
+  return [
+    `${rel.fromTable}(${rel.fromColumns.join(",")})`,
+    "->",
+    `${rel.toTable}(${rel.toColumns.join(",")})`,
+    rel.cardinality,
+  ].join(" ");
 }
 
 function byName<T extends { name: string }>(items: readonly T[]): Map<string, T> {
@@ -85,8 +100,17 @@ export function diff(before: IRSchema, after: IRSchema): SchemaChange[] {
   for (const name of beforeRels.keys()) {
     if (!afterRels.has(name)) changes.push({ kind: "relation.removed", name });
   }
-  for (const name of afterRels.keys()) {
-    if (!beforeRels.has(name)) changes.push({ kind: "relation.added", name });
+  for (const [name, afterRel] of afterRels) {
+    const beforeRel = beforeRels.get(name);
+    if (!beforeRel) {
+      changes.push({ kind: "relation.added", name });
+      continue;
+    }
+    const beforeSig = relationSignature(beforeRel);
+    const afterSig = relationSignature(afterRel);
+    if (beforeSig !== afterSig) {
+      changes.push({ kind: "relation.changed", name, before: beforeSig, after: afterSig });
+    }
   }
 
   return changes;

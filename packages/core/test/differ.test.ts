@@ -70,4 +70,34 @@ describe("differ", () => {
     expect(diff(base, after)).toContainEqual({ kind: "relation.added", name: "rel1" });
     expect(diff(after, base)).toContainEqual({ kind: "relation.removed", name: "rel1" });
   });
+
+  it("detects a changed relation (same name, different cardinality)", () => {
+    const before = structuredClone(base);
+    before.relations.push({
+      name: "rel1",
+      fromTable: "Post",
+      fromColumns: ["authorId"],
+      toTable: "User",
+      toColumns: ["id"],
+      cardinality: "one-to-many",
+    });
+    const after = structuredClone(before);
+    const rel = after.relations.find((r) => r.name === "rel1");
+    if (rel) rel.cardinality = "one-to-one";
+    const changes = diff(before, after);
+    expect(changes.some((c) => c.kind === "relation.changed" && c.name === "rel1")).toBe(true);
+  });
+
+  it("does not report unchanged relations", () => {
+    const withRel = structuredClone(base);
+    withRel.relations.push({
+      name: "rel1",
+      fromTable: "Post",
+      fromColumns: ["authorId"],
+      toTable: "User",
+      toColumns: ["id"],
+      cardinality: "one-to-many",
+    });
+    expect(diff(withRel, structuredClone(withRel))).toEqual([]);
+  });
 });
