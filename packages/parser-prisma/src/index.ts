@@ -11,12 +11,22 @@ import type {
   Table,
 } from "@alirezahamid/schemat-core";
 import { IR_VERSION, parseSchema } from "@alirezahamid/schemat-core";
-// @prisma/internals is CommonJS: it has no named ESM exports, so it must be
-// namespace-imported and destructured. (Learned the hard way — do not
-// "import { getDMMF }".)
+// @prisma/internals is CommonJS: it has no named ESM exports. Depending on the
+// bundler/runtime interop, getDMMF is exposed either directly on the namespace
+// or under `.default`. Resolve both shapes robustly.
 import * as prismaInternals from "@prisma/internals";
 
-const { getDMMF } = prismaInternals;
+type GetDMMF = (opts: { datamodel: string }) => Promise<{
+  datamodel: { models: unknown[]; enums: unknown[] };
+}>;
+
+const ns = prismaInternals as unknown as {
+  getDMMF?: GetDMMF;
+  default?: { getDMMF?: GetDMMF };
+};
+const getDMMF: GetDMMF = ns.getDMMF ?? ns.default?.getDMMF ?? (() => {
+  throw new Error("Could not resolve getDMMF from @prisma/internals");
+});
 
 /** Minimal shape of the DMMF fields we consume, to avoid a hard type dep. */
 interface DmmfField {
