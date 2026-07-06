@@ -1,0 +1,27 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# web build
+packages/web/dist/
+packages/cli/web-dist/
+
+# env / logs
+.env
+.env.*
+*.log
+npm-debug.log*
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# prisma generated client (from example)
+examples/**/node_modules/
+.schemat-cache/

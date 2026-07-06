@@ -1,0 +1,24 @@
+{
+  "name": "@alirezahamid/schemat-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Git-native database schema documentation. Live, interactive ER diagrams from your repo.",
+  "license": "MIT",
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "dev": "pnpm --filter @alirezahamid/schemat dev"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "typescript": "5.7.2"
+  }
+}
