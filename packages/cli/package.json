@@ -1,0 +1,31 @@
+{
+  "name": "@alirezahamid/schemat",
+  "version": "0.0.0",
+  "description": "Git-native database schema documentation — live interactive ER diagrams from your repo.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "schemat": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean --no-splitting",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx src/index.ts dev --root ../../examples/blog"
+  },
+  "dependencies": {
+    "@alirezahamid/schemat-core": "workspace:*",
+    "@alirezahamid/schemat-parser-prisma": "workspace:*",
+    "@alirezahamid/schemat-web": "workspace:*",
+    "chokidar": "4.0.3",
+    "commander": "12.1.0",
+    "ws": "8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.10",
+    "@types/ws": "8.5.13",
+    "tsup": "8.3.5",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@alirezahamid/schemat-web",
+  "version": "0.0.0",
+  "description": "Interactive schema canvas for Schemat (React Flow).",
+  "license": "MIT",
+  "type": "module",
+  "files": ["dist"],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@alirezahamid/schemat-core": "workspace:*",
+    "@xyflow/react": "12.3.6",
+    "elkjs": "0.9.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.17",
+    "@types/react-dom": "18.3.5",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.7.2",
+    "vite": "5.4.11"
+  }
+}

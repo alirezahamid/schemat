@@ -1,0 +1,58 @@
+// Sample Prisma schema used by Schemat for development and tests.
+// A small blog domain with enums, relations, and a many-to-many.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// An application user.
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  posts     Post[]
+  profile   Profile?
+}
+
+model Profile {
+  id     Int     @id @default(autoincrement())
+  bio    String?
+  user   User    @relation(fields: [userId], references: [id])
+  userId Int     @unique
+}
+
+/// A blog post authored by a user.
+model Post {
+  id        Int        @id @default(autoincrement())
+  title     String
+  content   String?
+  status    PostStatus @default(DRAFT)
+  author    User       @relation(fields: [authorId], references: [id])
+  authorId  Int
+  createdAt DateTime   @default(now())
+  tags      Tag[]
+}
+
+model Tag {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  posts Post[]
+}
