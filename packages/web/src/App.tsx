@@ -11,11 +11,17 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TableNode, type TableNodeData } from "./canvas/TableNode";
 import { schemaToGraph } from "./canvas/graph";
 import { layoutGraph } from "./canvas/layout";
-import { connectLiveUpdates, readInitialSchema } from "./ws";
+import {
+  type Positions,
+  connectLiveUpdates,
+  readInitialLayout,
+  readInitialSchema,
+  saveLayout,
+} from "./ws";
 
 const nodeTypes = { table: TableNode };
 
@@ -23,15 +29,18 @@ function Canvas({ schema }: { schema: IRSchema }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<TableNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
+  // Authoritative set of pinned positions: seeded from the saved layout the CLI
+  // injected, then updated as the user drags. Kept in a ref so live schema
+  // reloads reuse the latest positions without re-triggering layout effects.
+  const pinnedRef = useRef<Positions>(readInitialLayout());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     const { nodes: rawNodes, edges: rawEdges } = schemaToGraph(schema);
-    // Preserve existing positions across live reloads (match by table name).
-    const pinned: Record<string, { x: number; y: number }> = {};
-    for (const n of nodes) {
-      if (n.position.x !== 0 || n.position.y !== 0) pinned[n.id] = n.position;
-    }
-    layoutGraph(rawNodes, rawEdges, pinned).then((laidOut) => {
+    // Auto-layout only fills tables with no saved/dragged position; pinned
+    // tables keep exactly where they were.
+    layoutGraph(rawNodes, rawEdges, pinnedRef.current).then((laidOut) => {
       if (cancelled) return;
       setNodes(laidOut);
       setEdges(rawEdges);
@@ -43,12 +52,38 @@ function Canvas({ schema }: { schema: IRSchema }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema]);
 
+  // Persist positions shortly after a drag settles (debounced), so rapid
+  // dragging collapses into a single write.
+  const persist = useCallback((current: Node<TableNodeData>[]) => {
+    const positions: Positions = {};
+    for (const n of current) positions[n.id] = { x: n.position.x, y: n.position.y };
+    pinnedRef.current = positions;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void saveLayout(positions);
+    }, 400);
+  }, []);
+
+  const onNodeDragStop = useCallback(() => {
+    setNodes((current) => {
+      persist(current);
+      return current;
+    });
+  }, [persist, setNodes]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
+
   return (
     <ReactFlow
       nodes={nodes}
       edges={edges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
+      onNodeDragStop={onNodeDragStop}
       nodeTypes={nodeTypes}
       fitView
       minZoom={0.1}

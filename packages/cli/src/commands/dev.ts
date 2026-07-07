@@ -26,7 +26,7 @@ export async function runDev(options: DevOptions): Promise<void> {
   }
 
   const schema = await prismaParser.parse({ projectPath });
-  const server = await startServer(schema, options.port);
+  const server = await startServer(schema, options.port, projectPath);
 
   const url = `http://localhost:${server.port}`;
   console.log(`\n  Schemat running at ${url}`);
