@@ -71,9 +71,20 @@ function Canvas({ schema }: { schema: IRSchema }) {
     });
   }, [persist, setNodes]);
 
+  // Flush any pending debounced save on unmount or when the tab is hidden, so a
+  // final drag right before closing/refreshing is never lost.
   useEffect(() => {
+    const flush = () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        void saveLayout(pinnedRef.current);
+      }
+    };
+    window.addEventListener("pagehide", flush);
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      window.removeEventListener("pagehide", flush);
+      flush();
     };
   }, []);
 

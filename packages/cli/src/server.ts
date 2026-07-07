@@ -44,12 +44,10 @@ export async function startServer(
   projectPath: string,
 ): Promise<SchematServer> {
   const distDir = resolveWebDist();
-  const layout = await loadLayout(projectPath);
-  const indexHtml = await buildIndexHtml(distDir, initial, layout);
   let currentSchema = initial;
 
   const httpServer = createServer((req, res) => {
-    handleHttp(req, res, { distDir, indexHtml, projectPath }).catch(() => {
+    handleHttp(req, res, { distDir, projectPath, getSchema: () => currentSchema }).catch(() => {
       if (!res.headersSent) res.statusCode = 500;
       res.end("internal error");
     });
@@ -110,8 +108,8 @@ function serialize(value: unknown): string {
 
 interface HandlerCtx {
   distDir: string;
-  indexHtml: string;
   projectPath: string;
+  getSchema: () => IRSchema;
 }
 
 async function handleHttp(
@@ -131,13 +129,18 @@ async function handleHttp(
 
   // Layout API.
   if (pathname === "/api/layout") {
-    await handleLayoutApi(req, res, ctx.projectPath);
+    await handleLayoutApi(req, res, ctx);
     return;
   }
 
   if (pathname === "/" || pathname === "/index.html") {
+    // Build index per-request so the injected layout reflects the current
+    // .schemat/layout.json (a POST earlier this session must be visible on
+    // refresh without restarting the server).
+    const layout = await loadLayout(ctx.projectPath);
+    const html = await buildIndexHtml(ctx.distDir, ctx.getSchema(), layout);
     res.setHeader("Content-Type", HTML_MIME);
-    res.end(ctx.indexHtml);
+    res.end(html);
     return;
   }
 
@@ -159,27 +162,64 @@ async function handleHttp(
     res.end(data);
   } catch {
     // SPA fallback.
+    const layout = await loadLayout(ctx.projectPath);
+    const html = await buildIndexHtml(ctx.distDir, ctx.getSchema(), layout);
     res.setHeader("Content-Type", HTML_MIME);
-    res.end(ctx.indexHtml);
+    res.end(html);
   }
+}
+
+/**
+ * Reject cross-origin writes. This endpoint writes a file into the user's repo,
+ * so a POST from any other page in the browser must not be able to clobber it.
+ * We require a same-origin `Origin` (when present) and a JSON content type —
+ * both of which a cross-site form/`fetch` cannot forge without CORS approval.
+ */
+function isCrossOriginWrite(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (origin !== undefined) {
+    const host = req.headers.host;
+    try {
+      if (new URL(origin).host !== host) return true;
+    } catch {
+      return true;
+    }
+  }
+  const ct = (req.headers["content-type"] ?? "").toLowerCase();
+  if (!ct.includes("application/json")) return true;
+  return false;
 }
 
 async function handleLayoutApi(
   req: IncomingMessage,
   res: ServerResponse,
-  projectPath: string,
+  ctx: HandlerCtx,
 ): Promise<void> {
   if (req.method === "GET") {
-    const layout = await loadLayout(projectPath);
+    const layout = await loadLayout(ctx.projectPath);
     res.setHeader("Content-Type", JSON_MIME);
     res.end(JSON.stringify(layout));
     return;
   }
 
   if (req.method === "POST") {
+    if (isCrossOriginWrite(req)) {
+      res.statusCode = 403;
+      res.end("forbidden");
+      return;
+    }
     const positions = await readLayoutBody(req, res);
     if (positions === null) return; // response already sent
-    await saveLayout(projectPath, positions);
+
+    // Only persist positions for tables that currently exist in the schema —
+    // stale or bogus keys never reach the committed layout file.
+    const known = new Set(ctx.getSchema().tables.map((t) => t.name));
+    const filtered: Record<string, Position> = {};
+    for (const [name, pos] of Object.entries(positions)) {
+      if (known.has(name)) filtered[name] = pos;
+    }
+
+    await saveLayout(ctx.projectPath, filtered);
     res.statusCode = 204;
     res.end();
     return;

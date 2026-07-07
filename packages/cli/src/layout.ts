@@ -1,4 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /** A saved node position. */
@@ -74,7 +75,14 @@ export async function saveLayout(
   await mkdir(dir, { recursive: true });
 
   const target = layoutPath(projectPath);
-  const tmp = `${target}.${process.pid}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(doc, null, 2)}\n`, "utf8");
-  await rename(tmp, target);
+  // Unique temp name per write so concurrent saves never race on the same path.
+  const tmp = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tmp, `${JSON.stringify(doc, null, 2)}\n`, "utf8");
+    await rename(tmp, target);
+  } catch (err) {
+    // Best-effort cleanup of the temp file if the rename never happened.
+    await unlink(tmp).catch(() => {});
+    throw err;
+  }
 }

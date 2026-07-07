@@ -10,13 +10,17 @@ const layoutOptions = {
   "elk.direction": "RIGHT",
   "elk.layered.spacing.nodeNodeBetweenLayers": "120",
   "elk.spacing.nodeNode": "60",
-  "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+  // Interactive placement honours the seeded x/y of pinned nodes, so new
+  // (unpinned) tables are arranged around them instead of on top of them.
+  "elk.layered.nodePlacement.strategy": "INTERACTIVE",
+  "elk.layered.crossingMinimization.strategy": "INTERACTIVE",
+  "elk.interactive": "true",
 };
 
 /**
- * Auto-layout the graph with elkjs. Returns nodes with computed positions.
- * Nodes that already carry a non-origin position (e.g. user-dragged, restored
- * from layout.json) are pinned so layout only arranges the rest.
+ * Auto-layout the graph with elkjs. Nodes present in `pinned` (restored from
+ * layout.json or user-dragged) keep their exact positions; only unpinned nodes
+ * are placed by the algorithm, arranged around the pinned ones.
  */
 export async function layoutGraph(
   nodes: Node<TableNodeData>[],
@@ -29,7 +33,10 @@ export async function layoutGraph(
       id: n.id,
       width: NODE_WIDTH,
       height: nodeHeight(n.data.columns.length),
-      ...(fixed ? { x: fixed.x, y: fixed.y } : {}),
+      ...(fixed
+        ? // Seed position AND mark the node fixed so ELK won't move it.
+          { x: fixed.x, y: fixed.y, layoutOptions: { "elk.fixed": "true" } }
+        : {}),
     };
   });
 
@@ -48,6 +55,8 @@ export async function layoutGraph(
 
   return nodes.map((n) => ({
     ...n,
+    // Pinned nodes always keep their exact saved position; the ELK result is
+    // only used for nodes that had none.
     position: pinned[n.id] ?? positions.get(n.id) ?? n.position,
   }));
 }
