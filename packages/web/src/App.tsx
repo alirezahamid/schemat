@@ -9,11 +9,13 @@ import {
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TableNode, type TableNodeData } from "./canvas/TableNode";
-import { schemaToGraph } from "./canvas/graph";
+import { EnumNode } from "./canvas/EnumNode";
+import { TableNode } from "./canvas/TableNode";
+import { type SchematNode, schemaToGraph } from "./canvas/graph";
 import { layoutGraph } from "./canvas/layout";
 import {
   type Positions,
@@ -23,23 +25,34 @@ import {
   saveLayout,
 } from "./ws";
 
-const nodeTypes = { table: TableNode };
+const nodeTypes = { table: TableNode, enum: EnumNode };
 
-function Canvas({ schema }: { schema: IRSchema }) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<TableNodeData>>([]);
+const DIM_OPACITY = 0.18;
+
+/** Build the set of node ids directly connected to `focus` (plus focus itself). */
+function relatedNodeIds(focus: string, edges: Edge[]): Set<string> {
+  const related = new Set<string>([focus]);
+  for (const e of edges) {
+    if (e.source === focus) related.add(e.target);
+    if (e.target === focus) related.add(e.source);
+  }
+  return related;
+}
+
+function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<SchematNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const { setCenter, getNode } = useReactFlow();
 
-  // Authoritative set of pinned positions: seeded from the saved layout the CLI
-  // injected, then updated as the user drags. Kept in a ref so live schema
-  // reloads reuse the latest positions without re-triggering layout effects.
   const pinnedRef = useRef<Positions>(readInitialLayout());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Keep the base edges so hover recompute doesn't depend on styled state.
+  const baseEdges = useRef<Edge[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     const { nodes: rawNodes, edges: rawEdges } = schemaToGraph(schema);
-    // Auto-layout only fills tables with no saved/dragged position; pinned
-    // tables keep exactly where they were.
+    baseEdges.current = rawEdges;
     layoutGraph(rawNodes, rawEdges, pinnedRef.current).then((laidOut) => {
       if (cancelled) return;
       setNodes(laidOut);
@@ -48,13 +61,10 @@ function Canvas({ schema }: { schema: IRSchema }) {
     return () => {
       cancelled = true;
     };
-    // Re-run only when the schema identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema]);
 
-  // Persist positions shortly after a drag settles (debounced), so rapid
-  // dragging collapses into a single write.
-  const persist = useCallback((current: Node<TableNodeData>[]) => {
+  const persist = useCallback((current: SchematNode[]) => {
     const positions: Positions = {};
     for (const n of current) positions[n.id] = { x: n.position.x, y: n.position.y };
     pinnedRef.current = positions;
@@ -71,8 +81,6 @@ function Canvas({ schema }: { schema: IRSchema }) {
     });
   }, [persist, setNodes]);
 
-  // Flush any pending debounced save on unmount or when the tab is hidden, so a
-  // final drag right before closing/refreshing is never lost.
   useEffect(() => {
     const flush = () => {
       if (saveTimer.current) {
@@ -88,6 +96,62 @@ function Canvas({ schema }: { schema: IRSchema }) {
     };
   }, []);
 
+  // Hover highlight: emphasise the hovered table and its neighbours, dim the
+  // rest. Restored on mouse-leave.
+  const applyFocus = useCallback(
+    (focus: string | null) => {
+      setNodes((current) =>
+        current.map((n): SchematNode => {
+          const related = focus === null ? null : relatedNodeIds(focus, baseEdges.current);
+          const dimmed = related !== null && !related.has(n.id);
+          return {
+            ...n,
+            data: { ...n.data, dimmed },
+            style: { ...n.style, opacity: dimmed ? DIM_OPACITY : 1 },
+          } as SchematNode;
+        }),
+      );
+      setEdges((current) =>
+        current.map((e) => {
+          const active = focus === null || e.source === focus || e.target === focus;
+          return {
+            ...e,
+            style: {
+              ...e.style,
+              opacity: active ? 1 : DIM_OPACITY,
+              stroke: active && focus !== null ? "#38bdf8" : "#64748b",
+            },
+            animated: focus !== null && active ? true : e.animated,
+          };
+        }),
+      );
+    },
+    [setNodes, setEdges],
+  );
+
+  const onNodeMouseEnter = useCallback(
+    (_: unknown, node: Node) => applyFocus(node.id),
+    [applyFocus],
+  );
+  const onNodeMouseLeave = useCallback(() => applyFocus(null), [applyFocus]);
+
+  // Search: center + zoom to the first table whose name matches the query.
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return;
+    const match = nodes.find((n) => n.id.toLowerCase().includes(q));
+    if (!match) return;
+    const rfNode = getNode(match.id);
+    if (!rfNode) return;
+    const w = rfNode.measured?.width ?? 240;
+    const h = rfNode.measured?.height ?? 120;
+    setCenter(rfNode.position.x + w / 2, rfNode.position.y + h / 2, {
+      zoom: 1.2,
+      duration: 400,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
   return (
     <ReactFlow
       nodes={nodes}
@@ -95,6 +159,8 @@ function Canvas({ schema }: { schema: IRSchema }) {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeDragStop={onNodeDragStop}
+      onNodeMouseEnter={onNodeMouseEnter}
+      onNodeMouseLeave={onNodeMouseLeave}
       nodeTypes={nodeTypes}
       fitView
       minZoom={0.1}
@@ -116,6 +182,7 @@ function Canvas({ schema }: { schema: IRSchema }) {
 export default function App() {
   const initial = useMemo(() => readInitialSchema(), []);
   const [schema, setSchema] = useState<IRSchema | null>(initial);
+  const [query, setQuery] = useState("");
 
   useEffect(() => connectLiveUpdates(setSchema), []);
 
@@ -135,13 +202,20 @@ export default function App() {
       <div className="app">
         <header className="topbar">
           <span className="logo">Schemat</span>
+          <input
+            className="search"
+            type="search"
+            placeholder="Find a table…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
           <span className="stats">
             {schema.tables.length} tables · {schema.relations.length} relations ·{" "}
             {schema.enums.length} enums
           </span>
         </header>
         <div className="canvas-wrap">
-          <Canvas schema={schema} />
+          <Canvas schema={schema} query={query} />
         </div>
       </div>
     </ReactFlowProvider>
