@@ -97,31 +97,42 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
   }, []);
 
   // Hover highlight: emphasise the hovered table and its neighbours, dim the
-  // rest. Restored on mouse-leave.
+  // rest. Restored on mouse-leave. Computed once per focus, and returns the
+  // existing object when nothing changed to avoid re-render churn on big graphs.
   const applyFocus = useCallback(
     (focus: string | null) => {
+      const related = focus === null ? null : relatedNodeIds(focus, baseEdges.current);
+
       setNodes((current) =>
         current.map((n): SchematNode => {
-          const related = focus === null ? null : relatedNodeIds(focus, baseEdges.current);
           const dimmed = related !== null && !related.has(n.id);
+          const nextOpacity = dimmed ? DIM_OPACITY : 1;
+          if (n.data.dimmed === dimmed && n.style?.opacity === nextOpacity) return n;
           return {
             ...n,
             data: { ...n.data, dimmed },
-            style: { ...n.style, opacity: dimmed ? DIM_OPACITY : 1 },
+            style: { ...n.style, opacity: nextOpacity },
           } as SchematNode;
         }),
       );
+
       setEdges((current) =>
         current.map((e) => {
           const active = focus === null || e.source === focus || e.target === focus;
+          const opacity = active ? 1 : DIM_OPACITY;
+          const stroke = active && focus !== null ? "#38bdf8" : "#64748b";
+          // Restore the ORIGINAL animated flag from base edges on leave, so a
+          // non-m2m edge doesn't stay animated after being hovered.
+          const base = baseEdges.current.find((b) => b.id === e.id);
+          const animated =
+            focus !== null && active ? true : (base?.animated ?? false);
+          if (e.style?.opacity === opacity && e.style?.stroke === stroke && e.animated === animated) {
+            return e;
+          }
           return {
             ...e,
-            style: {
-              ...e.style,
-              opacity: active ? 1 : DIM_OPACITY,
-              stroke: active && focus !== null ? "#38bdf8" : "#64748b",
-            },
-            animated: focus !== null && active ? true : e.animated,
+            style: { ...e.style, opacity, stroke },
+            animated,
           };
         }),
       );
@@ -135,11 +146,13 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
   );
   const onNodeMouseLeave = useCallback(() => applyFocus(null), [applyFocus]);
 
-  // Search: center + zoom to the first table whose name matches the query.
+  // Search: center + zoom to the first TABLE whose name matches the query.
+  // Runs when the query OR the node set changes, so a query typed before layout
+  // settles (or before a live reload lands) still resolves once nodes exist.
   useEffect(() => {
     const q = query.trim().toLowerCase();
     if (!q) return;
-    const match = nodes.find((n) => n.id.toLowerCase().includes(q));
+    const match = nodes.find((n) => n.type === "table" && n.id.toLowerCase().includes(q));
     if (!match) return;
     const rfNode = getNode(match.id);
     if (!rfNode) return;
@@ -149,8 +162,7 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
       zoom: 1.2,
       duration: 400,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, nodes, getNode, setCenter]);
 
   return (
     <ReactFlow

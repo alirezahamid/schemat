@@ -1,7 +1,7 @@
 import type { Column } from "@alirezahamid/schemat-core";
 import { Handle, Position } from "@xyflow/react";
 import { memo } from "react";
-import { columnHandle } from "./graph";
+import { DEFAULT_SOURCE_HANDLE, DEFAULT_TARGET_HANDLE, columnHandle } from "./graph";
 
 export interface DisplayColumn extends Column {
   isForeignKey: boolean;
@@ -60,6 +60,19 @@ function TableNodeComponent({ data }: { data: TableNodeData }) {
       className={`table-node${data.dimmed ? " dimmed" : ""}`}
       title={data.comment ?? undefined}
     >
+      {/* Node-level fallback handles for edges with no specific column (m2m). */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id={DEFAULT_TARGET_HANDLE}
+        className="handle node-handle"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={DEFAULT_SOURCE_HANDLE}
+        className="handle node-handle"
+      />
       <div className="table-header">{data.name}</div>
       <div className="table-body">
         {data.columns.map((col) => (

@@ -169,6 +169,13 @@ body,
   opacity: 0.7;
 }
 
+/* Node-level fallback handles (m2m edges) — hidden, centered on the node edge. */
+.node-handle {
+  opacity: 0;
+  pointer-events: none;
+  top: 50%;
+}
+
 /* Dim state for hover highlighting. */
 .table-node,
 .enum-node {

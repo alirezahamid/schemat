@@ -12,13 +12,19 @@ export function nodeHeight(rowCount: number): number {
   return HEADER_HEIGHT + rowCount * ROW_HEIGHT + 8;
 }
 
-/** A React Flow node that is either a table or an enum. */
-export type SchematNode = Node<TableNodeData> | Node<EnumNodeData>;
+/** Discriminated React Flow node types. */
+export type TableFlowNode = Node<TableNodeData, "table">;
+export type EnumFlowNode = Node<EnumNodeData, "enum">;
+export type SchematNode = TableFlowNode | EnumFlowNode;
 
 /** Handle id for a column's connection point. Kept stable for edge wiring. */
 export function columnHandle(column: string, side: "source" | "target"): string {
   return `${column}::${side}`;
 }
+
+/** Node-level fallback handle ids, used by edges with no specific column (m2m). */
+export const DEFAULT_SOURCE_HANDLE = "node::source";
+export const DEFAULT_TARGET_HANDLE = "node::target";
 
 /** Map an IR schema to React Flow nodes and edges (positions filled by layout). */
 export function schemaToGraph(schema: IRSchema): {
@@ -33,7 +39,7 @@ export function schemaToGraph(schema: IRSchema): {
     foreignKeyColumns.set(rel.fromTable, set);
   }
 
-  const tableNodes: Node<TableNodeData>[] = schema.tables.map((table) => {
+  const tableNodes: TableFlowNode[] = schema.tables.map((table) => {
     const fks = foreignKeyColumns.get(table.name) ?? new Set<string>();
     return {
       id: table.name,
@@ -50,7 +56,7 @@ export function schemaToGraph(schema: IRSchema): {
     };
   });
 
-  const enumNodes: Node<EnumNodeData>[] = schema.enums.map((e) => ({
+  const enumNodes: EnumFlowNode[] = schema.enums.map((e) => ({
     id: `enum:${e.name}`,
     type: "enum",
     position: { x: 0, y: 0 },
@@ -59,15 +65,16 @@ export function schemaToGraph(schema: IRSchema): {
 
   const edges: Edge[] = schema.relations.map((rel) => {
     // Wire column-to-column when we know the exact columns; fall back to the
-    // node body for implicit many-to-many (which has no scalar FK).
+    // node-level default handle for implicit many-to-many (which has no scalar
+    // FK) so the edge always has valid, rendered endpoints to attach to.
     const fromCol = rel.fromColumns[0];
     const toCol = rel.toColumns[0];
     return {
       id: rel.name,
       source: rel.fromTable,
       target: rel.toTable,
-      sourceHandle: fromCol ? columnHandle(fromCol, "source") : undefined,
-      targetHandle: toCol ? columnHandle(toCol, "target") : undefined,
+      sourceHandle: fromCol ? columnHandle(fromCol, "source") : DEFAULT_SOURCE_HANDLE,
+      targetHandle: toCol ? columnHandle(toCol, "target") : DEFAULT_TARGET_HANDLE,
       label:
         rel.cardinality === "many-to-many"
           ? "N:N"
