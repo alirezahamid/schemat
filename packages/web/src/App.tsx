@@ -42,33 +42,43 @@ function relatedNodeIds(focus: string, edges: Edge[]): Set<string> {
 function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<SchematNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const { setCenter, getNode } = useReactFlow();
+  const { setCenter, getNode, getNodes } = useReactFlow();
 
   const pinnedRef = useRef<Positions>(readInitialLayout());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep the base edges so hover recompute doesn't depend on styled state.
   const baseEdges = useRef<Edge[]>([]);
+  // O(1) lookup of each edge's original animated flag (m2m edges animate).
+  const baseAnimated = useRef<Map<string, boolean>>(new Map());
   // The click-selected table (sticky). Hover only takes effect when nothing is
   // selected; a selection overrides hover until the user clicks away.
   const selectedRef = useRef<string | null>(null);
 
-  // Recompute which side each column edge attaches to, based on node x-order.
+  // Recompute which side each edge attaches to, based on current node x-order.
+  // Reads nodes via getNodes() so we never call setEdges inside a setNodes
+  // updater (which must stay pure, esp. under StrictMode).
   const relayoutEdges = useCallback(() => {
-    setNodes((currentNodes) => {
-      setEdges((currentEdges) => resolveEdgeHandles(currentEdges, currentNodes));
-      return currentNodes;
-    });
-  }, [setNodes, setEdges]);
+    const current = getNodes() as SchematNode[];
+    setEdges((currentEdges) => resolveEdgeHandles(currentEdges, current));
+  }, [getNodes, setEdges]);
 
   useEffect(() => {
     let cancelled = false;
     const { nodes: rawNodes, edges: rawEdges } = schemaToGraph(schema);
     baseEdges.current = rawEdges;
+    baseAnimated.current = new Map(rawEdges.map((e) => [e.id, e.animated ?? false]));
+    // If the sticky-selected table no longer exists after a live reload, drop
+    // the selection so hover isn't silently blocked.
+    if (selectedRef.current && !rawNodes.some((n) => n.id === selectedRef.current)) {
+      selectedRef.current = null;
+    }
     layoutGraph(rawNodes, rawEdges, pinnedRef.current).then((laidOut) => {
       if (cancelled) return;
       setNodes(laidOut);
       // Resolve handle sides now that positions are known.
       setEdges(resolveEdgeHandles(rawEdges, laidOut));
+      // Reapply the sticky selection's highlight to the freshly laid-out graph.
+      if (selectedRef.current) applyFocusRef.current?.(selectedRef.current);
     });
     return () => {
       cancelled = true;
@@ -87,13 +97,10 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
   }, []);
 
   const onNodeDragStop = useCallback(() => {
-    setNodes((current) => {
-      persist(current);
-      return current;
-    });
+    persist(getNodes() as SchematNode[]);
     // A moved node may now sit on the other side of its neighbour.
     relayoutEdges();
-  }, [persist, setNodes, relayoutEdges]);
+  }, [persist, getNodes, relayoutEdges]);
 
   useEffect(() => {
     const flush = () => {
@@ -143,8 +150,8 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
           const active = focus === null || e.source === focus || e.target === focus;
           const opacity = active ? 1 : DIM_OPACITY;
           const stroke = active && focus !== null ? "#38bdf8" : "#64748b";
-          const base = baseEdges.current.find((b) => b.id === e.id);
-          const animated = focus !== null && active ? true : (base?.animated ?? false);
+          const wasAnimated = baseAnimated.current.get(e.id) ?? false;
+          const animated = focus !== null && active ? true : wasAnimated;
           if (
             e.style?.opacity === opacity &&
             e.style?.stroke === stroke &&
@@ -158,6 +165,11 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
     },
     [setNodes, setEdges],
   );
+
+  // Ref mirror of applyFocus so the schema effect (declared earlier) can call
+  // the latest version without listing it as a dependency.
+  const applyFocusRef = useRef(applyFocus);
+  applyFocusRef.current = applyFocus;
 
   // Hover: transient preview, but only when no sticky selection is active.
   const onNodeMouseEnter = useCallback(

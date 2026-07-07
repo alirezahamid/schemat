@@ -20,9 +20,9 @@ export type SchematNode = TableFlowNode | EnumFlowNode;
 export type HandleSide = "left" | "right";
 
 /**
- * Handle id for a column's connection point. Each column has a source and a
- * target handle on BOTH sides; the edge resolver picks the side facing the
- * connected table so the line leaves/enters the exact column row precisely.
+ * Handle id for a column's connection point. Only columns that participate in a
+ * relation render handles; each such column exposes a source and a target
+ * handle on BOTH sides, and the edge resolver picks the side facing the peer.
  */
 export function columnHandle(
   column: string,
@@ -32,9 +32,11 @@ export function columnHandle(
   return `${column}::${role}::${side}`;
 }
 
-/** Node-level fallback handle ids, used by edges with no specific column (m2m). */
-export const DEFAULT_SOURCE_HANDLE = "node::source";
-export const DEFAULT_TARGET_HANDLE = "node::target";
+/** Node-level fallback handle ids (both sides) for edges with no scalar FK (m2m). */
+export const DEFAULT_SOURCE_HANDLE_LEFT = "node::source::left";
+export const DEFAULT_SOURCE_HANDLE_RIGHT = "node::source::right";
+export const DEFAULT_TARGET_HANDLE_LEFT = "node::target::left";
+export const DEFAULT_TARGET_HANDLE_RIGHT = "node::target::right";
 
 /** Endpoint columns carried on an edge so we can resolve handle sides later. */
 export interface EdgeColumns {
@@ -50,15 +52,28 @@ export function schemaToGraph(schema: IRSchema): {
   edges: Edge[];
 } {
   const foreignKeyColumns = new Map<string, Set<string>>();
+  // Columns that take part in ANY relation (either end) — only these need
+  // rendered handles, keeping the DOM light on wide schemas.
+  const relationColumns = new Map<string, Set<string>>();
+  const addRelationCol = (table: string, col: string) => {
+    const set = relationColumns.get(table) ?? new Set<string>();
+    set.add(col);
+    relationColumns.set(table, set);
+  };
+
   for (const rel of schema.relations) {
-    if (rel.fromColumns.length === 0) continue;
-    const set = foreignKeyColumns.get(rel.fromTable) ?? new Set<string>();
-    for (const c of rel.fromColumns) set.add(c);
-    foreignKeyColumns.set(rel.fromTable, set);
+    for (const c of rel.fromColumns) {
+      const set = foreignKeyColumns.get(rel.fromTable) ?? new Set<string>();
+      set.add(c);
+      foreignKeyColumns.set(rel.fromTable, set);
+      addRelationCol(rel.fromTable, c);
+    }
+    for (const c of rel.toColumns) addRelationCol(rel.toTable, c);
   }
 
   const tableNodes: TableFlowNode[] = schema.tables.map((table) => {
     const fks = foreignKeyColumns.get(table.name) ?? new Set<string>();
+    const rels = relationColumns.get(table.name) ?? new Set<string>();
     return {
       id: table.name,
       type: "table",
@@ -69,6 +84,8 @@ export function schemaToGraph(schema: IRSchema): {
         columns: table.columns.map((col) => ({
           ...col,
           isForeignKey: fks.has(col.name),
+          // Only render handles for columns that actually connect to something.
+          hasHandles: rels.has(col.name),
         })),
       },
     };
@@ -84,16 +101,16 @@ export function schemaToGraph(schema: IRSchema): {
   const edges: Edge[] = schema.relations.map((rel) => {
     const fromColumn = rel.fromColumns[0];
     const toColumn = rel.toColumns[0];
-    // Default to right(source) -> left(target); resolveEdgeHandles fixes the
-    // side once node positions are known.
     return {
       id: rel.name,
       source: rel.fromTable,
       target: rel.toTable,
       sourceHandle: fromColumn
         ? columnHandle(fromColumn, "source", "right")
-        : DEFAULT_SOURCE_HANDLE,
-      targetHandle: toColumn ? columnHandle(toColumn, "target", "left") : DEFAULT_TARGET_HANDLE,
+        : DEFAULT_SOURCE_HANDLE_RIGHT,
+      targetHandle: toColumn
+        ? columnHandle(toColumn, "target", "left")
+        : DEFAULT_TARGET_HANDLE_LEFT,
       label:
         rel.cardinality === "many-to-many"
           ? "N:N"
@@ -113,9 +130,9 @@ export function schemaToGraph(schema: IRSchema): {
 
 /**
  * Given current node positions, choose the handle side (left/right) for each
- * edge so the FK line leaves the source column on the side facing the target
- * table, and enters the target column on the side facing the source. Returns a
- * new edge array only when a handle actually changed (referential stability).
+ * edge so the FK line leaves the source on the side facing the target and
+ * enters the target on the side facing the source. Handles both column-level
+ * and node-level (m2m) edges. Returns a new array only when something changed.
  */
 export function resolveEdgeHandles(edges: Edge[], nodes: SchematNode[]): Edge[] {
   const centerX = new Map<string, number>();
@@ -127,18 +144,26 @@ export function resolveEdgeHandles(edges: Edge[], nodes: SchematNode[]): Edge[] 
   let changed = false;
   const next = edges.map((e) => {
     const cols = e.data as unknown as EdgeColumns | undefined;
-    if (!cols?.fromColumn || !cols.toColumn) return e; // m2m / node-level handles
+    if (!cols) return e;
 
     const from = centerX.get(e.source);
     const to = centerX.get(e.target);
     if (from === undefined || to === undefined) return e;
 
-    // Source exits toward the target; target receives from the source side.
     const sourceSide: HandleSide = to >= from ? "right" : "left";
     const targetSide: HandleSide = to >= from ? "left" : "right";
 
-    const sourceHandle = columnHandle(cols.fromColumn, "source", sourceSide);
-    const targetHandle = columnHandle(cols.toColumn, "target", targetSide);
+    const sourceHandle = cols.fromColumn
+      ? columnHandle(cols.fromColumn, "source", sourceSide)
+      : sourceSide === "right"
+        ? DEFAULT_SOURCE_HANDLE_RIGHT
+        : DEFAULT_SOURCE_HANDLE_LEFT;
+    const targetHandle = cols.toColumn
+      ? columnHandle(cols.toColumn, "target", targetSide)
+      : targetSide === "left"
+        ? DEFAULT_TARGET_HANDLE_LEFT
+        : DEFAULT_TARGET_HANDLE_RIGHT;
+
     if (e.sourceHandle === sourceHandle && e.targetHandle === targetHandle) return e;
 
     changed = true;
