@@ -11,8 +11,10 @@ export interface TableNodeData {
   name: string;
   comment: string | null;
   columns: DisplayColumn[];
-  /** Set while another table is hovered and this one is not related. */
+  /** Set while another table is hovered/selected and this one is not related. */
   dimmed?: boolean;
+  /** Set while this table is the click-selected focus. */
+  selected?: boolean;
   [key: string]: unknown;
 }
 
@@ -24,14 +26,25 @@ function Badge({ text, title }: { text: string; title: string }) {
   );
 }
 
+/**
+ * Each column exposes a source AND a target handle on BOTH sides. The edge
+ * builder picks the handle on the side facing the connected table, so an FK
+ * line leaves the exact column row on the correct side and lands on the exact
+ * referenced column row — precise, no looping around the node.
+ */
 function ColumnRow({ col }: { col: DisplayColumn }) {
   return (
     <div className="col-row">
-      {/* Per-column connection points so FK edges attach to the exact row. */}
       <Handle
         type="target"
         position={Position.Left}
-        id={columnHandle(col.name, "target")}
+        id={columnHandle(col.name, "target", "left")}
+        className="handle col-handle"
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id={columnHandle(col.name, "source", "left")}
         className="handle col-handle"
       />
       <span className="col-name">
@@ -45,9 +58,15 @@ function ColumnRow({ col }: { col: DisplayColumn }) {
         {col.isUnique && !col.isPrimaryKey ? <Badge text="U" title="Unique" /> : null}
       </span>
       <Handle
+        type="target"
+        position={Position.Right}
+        id={columnHandle(col.name, "target", "right")}
+        className="handle col-handle"
+      />
+      <Handle
         type="source"
         position={Position.Right}
-        id={columnHandle(col.name, "source")}
+        id={columnHandle(col.name, "source", "right")}
         className="handle col-handle"
       />
     </div>
@@ -55,11 +74,9 @@ function ColumnRow({ col }: { col: DisplayColumn }) {
 }
 
 function TableNodeComponent({ data }: { data: TableNodeData }) {
+  const cls = `table-node${data.dimmed ? " dimmed" : ""}${data.selected ? " selected" : ""}`;
   return (
-    <div
-      className={`table-node${data.dimmed ? " dimmed" : ""}`}
-      title={data.comment ?? undefined}
-    >
+    <div className={cls} title={data.comment ?? undefined}>
       {/* Node-level fallback handles for edges with no specific column (m2m). */}
       <Handle
         type="target"

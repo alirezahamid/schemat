@@ -17,14 +17,32 @@ export type TableFlowNode = Node<TableNodeData, "table">;
 export type EnumFlowNode = Node<EnumNodeData, "enum">;
 export type SchematNode = TableFlowNode | EnumFlowNode;
 
-/** Handle id for a column's connection point. Kept stable for edge wiring. */
-export function columnHandle(column: string, side: "source" | "target"): string {
-  return `${column}::${side}`;
+export type HandleSide = "left" | "right";
+
+/**
+ * Handle id for a column's connection point. Each column has a source and a
+ * target handle on BOTH sides; the edge resolver picks the side facing the
+ * connected table so the line leaves/enters the exact column row precisely.
+ */
+export function columnHandle(
+  column: string,
+  role: "source" | "target",
+  side: HandleSide,
+): string {
+  return `${column}::${role}::${side}`;
 }
 
 /** Node-level fallback handle ids, used by edges with no specific column (m2m). */
 export const DEFAULT_SOURCE_HANDLE = "node::source";
 export const DEFAULT_TARGET_HANDLE = "node::target";
+
+/** Endpoint columns carried on an edge so we can resolve handle sides later. */
+export interface EdgeColumns {
+  fromTable: string;
+  toTable: string;
+  fromColumn?: string;
+  toColumn?: string;
+}
 
 /** Map an IR schema to React Flow nodes and edges (positions filled by layout). */
 export function schemaToGraph(schema: IRSchema): {
@@ -64,17 +82,18 @@ export function schemaToGraph(schema: IRSchema): {
   }));
 
   const edges: Edge[] = schema.relations.map((rel) => {
-    // Wire column-to-column when we know the exact columns; fall back to the
-    // node-level default handle for implicit many-to-many (which has no scalar
-    // FK) so the edge always has valid, rendered endpoints to attach to.
-    const fromCol = rel.fromColumns[0];
-    const toCol = rel.toColumns[0];
+    const fromColumn = rel.fromColumns[0];
+    const toColumn = rel.toColumns[0];
+    // Default to right(source) -> left(target); resolveEdgeHandles fixes the
+    // side once node positions are known.
     return {
       id: rel.name,
       source: rel.fromTable,
       target: rel.toTable,
-      sourceHandle: fromCol ? columnHandle(fromCol, "source") : DEFAULT_SOURCE_HANDLE,
-      targetHandle: toCol ? columnHandle(toCol, "target") : DEFAULT_TARGET_HANDLE,
+      sourceHandle: fromColumn
+        ? columnHandle(fromColumn, "source", "right")
+        : DEFAULT_SOURCE_HANDLE,
+      targetHandle: toColumn ? columnHandle(toColumn, "target", "left") : DEFAULT_TARGET_HANDLE,
       label:
         rel.cardinality === "many-to-many"
           ? "N:N"
@@ -82,8 +101,7 @@ export function schemaToGraph(schema: IRSchema): {
             ? "1:1"
             : "1:N",
       animated: rel.cardinality === "many-to-many",
-      // Store endpoints so hover highlighting can reason about connectivity.
-      data: { fromTable: rel.fromTable, toTable: rel.toTable },
+      data: { fromTable: rel.fromTable, toTable: rel.toTable, fromColumn, toColumn },
       style: { stroke: "#64748b", strokeWidth: 1.5 },
       labelStyle: { fill: "#94a3b8", fontSize: 10 },
       labelBgStyle: { fill: "#0f172a" },
@@ -91,4 +109,41 @@ export function schemaToGraph(schema: IRSchema): {
   });
 
   return { nodes: [...tableNodes, ...enumNodes], edges };
+}
+
+/**
+ * Given current node positions, choose the handle side (left/right) for each
+ * edge so the FK line leaves the source column on the side facing the target
+ * table, and enters the target column on the side facing the source. Returns a
+ * new edge array only when a handle actually changed (referential stability).
+ */
+export function resolveEdgeHandles(edges: Edge[], nodes: SchematNode[]): Edge[] {
+  const centerX = new Map<string, number>();
+  for (const n of nodes) {
+    const w = n.measured?.width ?? NODE_WIDTH;
+    centerX.set(n.id, n.position.x + w / 2);
+  }
+
+  let changed = false;
+  const next = edges.map((e) => {
+    const cols = e.data as unknown as EdgeColumns | undefined;
+    if (!cols?.fromColumn || !cols.toColumn) return e; // m2m / node-level handles
+
+    const from = centerX.get(e.source);
+    const to = centerX.get(e.target);
+    if (from === undefined || to === undefined) return e;
+
+    // Source exits toward the target; target receives from the source side.
+    const sourceSide: HandleSide = to >= from ? "right" : "left";
+    const targetSide: HandleSide = to >= from ? "left" : "right";
+
+    const sourceHandle = columnHandle(cols.fromColumn, "source", sourceSide);
+    const targetHandle = columnHandle(cols.toColumn, "target", targetSide);
+    if (e.sourceHandle === sourceHandle && e.targetHandle === targetHandle) return e;
+
+    changed = true;
+    return { ...e, sourceHandle, targetHandle };
+  });
+
+  return changed ? next : edges;
 }

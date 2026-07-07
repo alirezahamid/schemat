@@ -15,7 +15,7 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EnumNode } from "./canvas/EnumNode";
 import { TableNode } from "./canvas/TableNode";
-import { type SchematNode, schemaToGraph } from "./canvas/graph";
+import { type SchematNode, resolveEdgeHandles, schemaToGraph } from "./canvas/graph";
 import { layoutGraph } from "./canvas/layout";
 import {
   type Positions,
@@ -48,6 +48,17 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep the base edges so hover recompute doesn't depend on styled state.
   const baseEdges = useRef<Edge[]>([]);
+  // The click-selected table (sticky). Hover only takes effect when nothing is
+  // selected; a selection overrides hover until the user clicks away.
+  const selectedRef = useRef<string | null>(null);
+
+  // Recompute which side each column edge attaches to, based on node x-order.
+  const relayoutEdges = useCallback(() => {
+    setNodes((currentNodes) => {
+      setEdges((currentEdges) => resolveEdgeHandles(currentEdges, currentNodes));
+      return currentNodes;
+    });
+  }, [setNodes, setEdges]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +67,8 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
     layoutGraph(rawNodes, rawEdges, pinnedRef.current).then((laidOut) => {
       if (cancelled) return;
       setNodes(laidOut);
-      setEdges(rawEdges);
+      // Resolve handle sides now that positions are known.
+      setEdges(resolveEdgeHandles(rawEdges, laidOut));
     });
     return () => {
       cancelled = true;
@@ -79,7 +91,9 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
       persist(current);
       return current;
     });
-  }, [persist, setNodes]);
+    // A moved node may now sit on the other side of its neighbour.
+    relayoutEdges();
+  }, [persist, setNodes, relayoutEdges]);
 
   useEffect(() => {
     const flush = () => {
@@ -96,21 +110,29 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
     };
   }, []);
 
-  // Hover highlight: emphasise the hovered table and its neighbours, dim the
-  // rest. Restored on mouse-leave. Computed once per focus, and returns the
-  // existing object when nothing changed to avoid re-render churn on big graphs.
+  // Highlight the focused table and its neighbours; dim the rest. `selected`
+  // marks the sticky click target so it can get a distinct outline. Computed
+  // once per focus; unchanged nodes/edges are returned as-is (perf).
   const applyFocus = useCallback(
     (focus: string | null) => {
       const related = focus === null ? null : relatedNodeIds(focus, baseEdges.current);
+      const selected = selectedRef.current;
 
       setNodes((current) =>
         current.map((n): SchematNode => {
           const dimmed = related !== null && !related.has(n.id);
+          const isSelected = n.id === selected;
           const nextOpacity = dimmed ? DIM_OPACITY : 1;
-          if (n.data.dimmed === dimmed && n.style?.opacity === nextOpacity) return n;
+          if (
+            n.data.dimmed === dimmed &&
+            n.data.selected === isSelected &&
+            n.style?.opacity === nextOpacity
+          ) {
+            return n;
+          }
           return {
             ...n,
-            data: { ...n.data, dimmed },
+            data: { ...n.data, dimmed, selected: isSelected },
             style: { ...n.style, opacity: nextOpacity },
           } as SchematNode;
         }),
@@ -121,34 +143,51 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
           const active = focus === null || e.source === focus || e.target === focus;
           const opacity = active ? 1 : DIM_OPACITY;
           const stroke = active && focus !== null ? "#38bdf8" : "#64748b";
-          // Restore the ORIGINAL animated flag from base edges on leave, so a
-          // non-m2m edge doesn't stay animated after being hovered.
           const base = baseEdges.current.find((b) => b.id === e.id);
-          const animated =
-            focus !== null && active ? true : (base?.animated ?? false);
-          if (e.style?.opacity === opacity && e.style?.stroke === stroke && e.animated === animated) {
+          const animated = focus !== null && active ? true : (base?.animated ?? false);
+          if (
+            e.style?.opacity === opacity &&
+            e.style?.stroke === stroke &&
+            e.animated === animated
+          ) {
             return e;
           }
-          return {
-            ...e,
-            style: { ...e.style, opacity, stroke },
-            animated,
-          };
+          return { ...e, style: { ...e.style, opacity, stroke }, animated };
         }),
       );
     },
     [setNodes, setEdges],
   );
 
+  // Hover: transient preview, but only when no sticky selection is active.
   const onNodeMouseEnter = useCallback(
-    (_: unknown, node: Node) => applyFocus(node.id),
+    (_: unknown, node: Node) => {
+      if (selectedRef.current === null) applyFocus(node.id);
+    },
     [applyFocus],
   );
-  const onNodeMouseLeave = useCallback(() => applyFocus(null), [applyFocus]);
+  const onNodeMouseLeave = useCallback(() => {
+    // Restore to the sticky selection (or clear if none).
+    if (selectedRef.current === null) applyFocus(null);
+    else applyFocus(selectedRef.current);
+  }, [applyFocus]);
+
+  // Click a node: make it the sticky focus (or switch to it).
+  const onNodeClick = useCallback(
+    (_: unknown, node: Node) => {
+      selectedRef.current = node.id;
+      applyFocus(node.id);
+    },
+    [applyFocus],
+  );
+
+  // Click empty canvas: clear the sticky selection and restore full view.
+  const onPaneClick = useCallback(() => {
+    selectedRef.current = null;
+    applyFocus(null);
+  }, [applyFocus]);
 
   // Search: center + zoom to the first TABLE whose name matches the query.
-  // Runs when the query OR the node set changes, so a query typed before layout
-  // settles (or before a live reload lands) still resolves once nodes exist.
   useEffect(() => {
     const q = query.trim().toLowerCase();
     if (!q) return;
@@ -173,6 +212,8 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
       onNodeDragStop={onNodeDragStop}
       onNodeMouseEnter={onNodeMouseEnter}
       onNodeMouseLeave={onNodeMouseLeave}
+      onNodeClick={onNodeClick}
+      onPaneClick={onPaneClick}
       nodeTypes={nodeTypes}
       fitView
       minZoom={0.1}

@@ -187,6 +187,12 @@ body,
   filter: saturate(0.4);
 }
 
+/* Sticky click-selected table gets a clear accent outline. */
+.table-node.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 20px rgba(56, 189, 248, 0.25);
+}
+
 /* Search box in the top bar. */
 .search {
   flex: 0 0 auto;
