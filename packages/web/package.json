@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@alirezahamid/schemat-core": "workspace:*",
+    "@alirezahamid/schemat-render": "workspace:*",
     "@xyflow/react": "12.3.6",
     "elkjs": "0.9.3",
     "react": "18.3.1",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { IRSchema } from "@alirezahamid/schemat-core";
 import { renderMermaid } from "../src/mermaid";
-import { renderSvg } from "../src/svg";
+import { renderSvg } from "../src/render-node";
 
 /** A hostile IR: names/types/labels stuffed with injection payloads. */
 const evil: IRSchema = {

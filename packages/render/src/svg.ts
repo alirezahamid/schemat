@@ -2,11 +2,10 @@ import type { Column, IRSchema, Relation } from "@alirezahamid/schemat-core";
 import {
   HEADER_HEIGHT,
   NODE_WIDTH,
-  type PinnedPositions,
   type PlacedNode,
+  type Placement,
   ROW_HEIGHT,
-  layoutSchema,
-} from "./layout";
+} from "./geometry";
 
 /** Theme tokens — kept aligned with the web canvas dark theme. */
 const THEME = {
@@ -191,23 +190,23 @@ function edgePath(
   );
 }
 
-export interface SvgOptions {
-  /** Saved positions from `.schemat/layout.json` to honour on export. */
-  pinned?: PinnedPositions;
-}
-
 /**
- * Render a schema to a self-contained, dark-themed SVG string. All styling is
- * inline so the file renders identically anywhere (GitHub README, browser, docs).
+ * Render a schema to SVG from an already-computed {@link Placement}. Pure and
+ * browser-safe (no elk / layout dependency) — the web canvas passes the live
+ * React Flow node positions here so the export matches exactly what's on screen.
+ * The CLI computes a Placement with elk first (see renderSvg in render-node).
  */
-export async function renderSvg(schema: IRSchema, options: SvgOptions = {}): Promise<string> {
-  const placement = await layoutSchema(schema, options.pinned);
+export function renderSvgFromPlacement(schema: IRSchema, placement: Placement): string {
+  // Work on a shallow copy of the placed nodes so we never mutate the caller's
+  // positions while normalising coordinates.
+  const nodes = new Map<string, PlacedNode>();
+  for (const [id, n] of placement.nodes) nodes.set(id, { ...n });
 
   // Normalise coordinates so the content starts at PADDING (elk may emit
-  // negative or offset origins, and pinned layouts can start anywhere).
+  // negative or offset origins, and pinned/live layouts can start anywhere).
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
-  for (const n of placement.nodes.values()) {
+  for (const n of nodes.values()) {
     minX = Math.min(minX, n.x);
     minY = Math.min(minY, n.y);
   }
@@ -217,29 +216,32 @@ export async function renderSvg(schema: IRSchema, options: SvgOptions = {}): Pro
   }
   const shiftX = PADDING - minX;
   const shiftY = PADDING - minY;
-  for (const n of placement.nodes.values()) {
+
+  let maxX = 0;
+  let maxY = 0;
+  for (const n of nodes.values()) {
     n.x += shiftX;
     n.y += shiftY;
+    maxX = Math.max(maxX, n.x + n.width);
+    maxY = Math.max(maxY, n.y + n.height);
   }
 
-  const width = placement.width + shiftX + PADDING;
-  const height = placement.height + shiftY + PADDING;
+  const width = maxX + PADDING;
+  const height = maxY + PADDING;
 
   const tableColumns = new Map<string, Column[]>();
   for (const t of schema.tables) tableColumns.set(t.name, t.columns);
 
   // Edges first (under nodes), then nodes on top.
-  const edges = schema.relations
-    .map((r) => edgePath(r, placement.nodes, tableColumns))
-    .join("");
+  const edges = schema.relations.map((r) => edgePath(r, nodes, tableColumns)).join("");
 
   const bodies: string[] = [];
   for (const t of schema.tables) {
-    const node = placement.nodes.get(t.name);
+    const node = nodes.get(t.name);
     if (node) bodies.push(tableNode(node, t.columns));
   }
   for (const e of schema.enums) {
-    const node = placement.nodes.get(`enum:${e.name}`);
+    const node = nodes.get(`enum:${e.name}`);
     if (node) bodies.push(enumNode(node, e.values));
   }
 

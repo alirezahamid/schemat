@@ -1,6 +1,6 @@
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { renderMermaid, renderSvg } from "@alirezahamid/schemat-render";
+import { renderMermaid, renderSvg } from "@alirezahamid/schemat-render/node";
 import { prismaParser } from "@alirezahamid/schemat-parser-prisma";
 import { loadLayout } from "../layout";
 

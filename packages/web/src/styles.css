@@ -279,3 +279,26 @@ body,
 .enum-value:last-child {
   border-bottom: none;
 }
+
+/* Export button (top-right canvas panel). */
+.export-btn {
+  background: var(--panel, #0b1220);
+  color: var(--text, #e2e8f0);
+  border: 1px solid var(--border, #1e293b);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.export-btn:hover {
+  border-color: var(--accent, #38bdf8);
+  background: #111c33;
+}
+
+.export-btn:active {
+  transform: translateY(1px);
+}

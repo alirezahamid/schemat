@@ -5,6 +5,7 @@ import {
   type Edge,
   MiniMap,
   type Node,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
@@ -12,6 +13,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { exportSvg } from "./canvas/export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EnumNode } from "./canvas/EnumNode";
 import { TableNode } from "./canvas/TableNode";
@@ -203,6 +205,11 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
     applyFocus(null);
   }, [applyFocus]);
 
+  // Export the current canvas (live positions) to a downloaded SVG.
+  const onExport = useCallback(() => {
+    exportSvg(schema, getNodes());
+  }, [schema, getNodes]);
+
   // Search: center + zoom to the first TABLE whose name matches the query.
   useEffect(() => {
     const q = query.trim().toLowerCase();
@@ -237,6 +244,11 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
     >
       <Background color="#1e293b" gap={20} />
       <Controls />
+      <Panel position="top-right">
+        <button type="button" className="export-btn" onClick={onExport} title="Download the diagram as SVG">
+          ↓ Export SVG
+        </button>
+      </Panel>
       <MiniMap
         pannable
         zoomable
