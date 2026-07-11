@@ -1,7 +1,6 @@
-import type { Edge, Node } from "@xyflow/react";
+import type { Edge } from "@xyflow/react";
 import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
-import type { TableNodeData } from "./TableNode";
-import { NODE_WIDTH, nodeHeight } from "./graph";
+import { NODE_WIDTH, type SchematNode, nodeHeight } from "./graph";
 
 const elk = new ELK();
 
@@ -17,22 +16,28 @@ const layoutOptions = {
   "elk.interactive": "true",
 };
 
+/** Row count used to estimate a node's height (columns for tables, values for enums). */
+function rowCount(node: SchematNode): number {
+  const data = node.data as { columns?: unknown[]; values?: unknown[] };
+  return data.columns?.length ?? data.values?.length ?? 1;
+}
+
 /**
  * Auto-layout the graph with elkjs. Nodes present in `pinned` (restored from
  * layout.json or user-dragged) keep their exact positions; only unpinned nodes
  * are placed by the algorithm, arranged around the pinned ones.
  */
 export async function layoutGraph(
-  nodes: Node<TableNodeData>[],
+  nodes: SchematNode[],
   edges: Edge[],
   pinned: Record<string, { x: number; y: number }> = {},
-): Promise<Node<TableNodeData>[]> {
+): Promise<SchematNode[]> {
   const elkNodes: ElkNode[] = nodes.map((n) => {
     const fixed = pinned[n.id];
     return {
       id: n.id,
       width: NODE_WIDTH,
-      height: nodeHeight(n.data.columns.length),
+      height: nodeHeight(rowCount(n)),
       ...(fixed
         ? // Seed position AND mark the node fixed so ELK won't move it.
           { x: fixed.x, y: fixed.y, layoutOptions: { "elk.fixed": "true" } }

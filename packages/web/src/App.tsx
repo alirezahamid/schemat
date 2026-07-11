@@ -9,11 +9,13 @@ import {
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TableNode, type TableNodeData } from "./canvas/TableNode";
-import { schemaToGraph } from "./canvas/graph";
+import { EnumNode } from "./canvas/EnumNode";
+import { TableNode } from "./canvas/TableNode";
+import { type SchematNode, resolveEdgeHandles, schemaToGraph } from "./canvas/graph";
 import { layoutGraph } from "./canvas/layout";
 import {
   type Positions,
@@ -23,38 +25,68 @@ import {
   saveLayout,
 } from "./ws";
 
-const nodeTypes = { table: TableNode };
+const nodeTypes = { table: TableNode, enum: EnumNode };
 
-function Canvas({ schema }: { schema: IRSchema }) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<TableNodeData>>([]);
+const DIM_OPACITY = 0.18;
+
+/** Build the set of node ids directly connected to `focus` (plus focus itself). */
+function relatedNodeIds(focus: string, edges: Edge[]): Set<string> {
+  const related = new Set<string>([focus]);
+  for (const e of edges) {
+    if (e.source === focus) related.add(e.target);
+    if (e.target === focus) related.add(e.source);
+  }
+  return related;
+}
+
+function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<SchematNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const { setCenter, getNode, getNodes } = useReactFlow();
 
-  // Authoritative set of pinned positions: seeded from the saved layout the CLI
-  // injected, then updated as the user drags. Kept in a ref so live schema
-  // reloads reuse the latest positions without re-triggering layout effects.
   const pinnedRef = useRef<Positions>(readInitialLayout());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Keep the base edges so hover recompute doesn't depend on styled state.
+  const baseEdges = useRef<Edge[]>([]);
+  // O(1) lookup of each edge's original animated flag (m2m edges animate).
+  const baseAnimated = useRef<Map<string, boolean>>(new Map());
+  // The click-selected table (sticky). Hover only takes effect when nothing is
+  // selected; a selection overrides hover until the user clicks away.
+  const selectedRef = useRef<string | null>(null);
+
+  // Recompute which side each edge attaches to, based on current node x-order.
+  // Reads nodes via getNodes() so we never call setEdges inside a setNodes
+  // updater (which must stay pure, esp. under StrictMode).
+  const relayoutEdges = useCallback(() => {
+    const current = getNodes() as SchematNode[];
+    setEdges((currentEdges) => resolveEdgeHandles(currentEdges, current));
+  }, [getNodes, setEdges]);
 
   useEffect(() => {
     let cancelled = false;
     const { nodes: rawNodes, edges: rawEdges } = schemaToGraph(schema);
-    // Auto-layout only fills tables with no saved/dragged position; pinned
-    // tables keep exactly where they were.
+    baseEdges.current = rawEdges;
+    baseAnimated.current = new Map(rawEdges.map((e) => [e.id, e.animated ?? false]));
+    // If the sticky-selected table no longer exists after a live reload, drop
+    // the selection so hover isn't silently blocked.
+    if (selectedRef.current && !rawNodes.some((n) => n.id === selectedRef.current)) {
+      selectedRef.current = null;
+    }
     layoutGraph(rawNodes, rawEdges, pinnedRef.current).then((laidOut) => {
       if (cancelled) return;
       setNodes(laidOut);
-      setEdges(rawEdges);
+      // Resolve handle sides now that positions are known.
+      setEdges(resolveEdgeHandles(rawEdges, laidOut));
+      // Reapply the sticky selection's highlight to the freshly laid-out graph.
+      if (selectedRef.current) applyFocusRef.current?.(selectedRef.current);
     });
     return () => {
       cancelled = true;
     };
-    // Re-run only when the schema identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema]);
 
-  // Persist positions shortly after a drag settles (debounced), so rapid
-  // dragging collapses into a single write.
-  const persist = useCallback((current: Node<TableNodeData>[]) => {
+  const persist = useCallback((current: SchematNode[]) => {
     const positions: Positions = {};
     for (const n of current) positions[n.id] = { x: n.position.x, y: n.position.y };
     pinnedRef.current = positions;
@@ -65,14 +97,11 @@ function Canvas({ schema }: { schema: IRSchema }) {
   }, []);
 
   const onNodeDragStop = useCallback(() => {
-    setNodes((current) => {
-      persist(current);
-      return current;
-    });
-  }, [persist, setNodes]);
+    persist(getNodes() as SchematNode[]);
+    // A moved node may now sit on the other side of its neighbour.
+    relayoutEdges();
+  }, [persist, getNodes, relayoutEdges]);
 
-  // Flush any pending debounced save on unmount or when the tab is hidden, so a
-  // final drag right before closing/refreshing is never lost.
   useEffect(() => {
     const flush = () => {
       if (saveTimer.current) {
@@ -88,6 +117,108 @@ function Canvas({ schema }: { schema: IRSchema }) {
     };
   }, []);
 
+  // Highlight the focused table and its neighbours; dim the rest. `selected`
+  // marks the sticky click target so it can get a distinct outline. Computed
+  // once per focus; unchanged nodes/edges are returned as-is (perf).
+  const applyFocus = useCallback(
+    (focus: string | null) => {
+      const related = focus === null ? null : relatedNodeIds(focus, baseEdges.current);
+      const selected = selectedRef.current;
+
+      setNodes((current) =>
+        current.map((n): SchematNode => {
+          const dimmed = related !== null && !related.has(n.id);
+          const isSelected = n.id === selected;
+          // Show column dots on the focused table AND every table it relates to,
+          // so both ends of each relation reveal their connection points.
+          const showHandles = related !== null && related.has(n.id);
+          const nextOpacity = dimmed ? DIM_OPACITY : 1;
+          if (
+            n.data.dimmed === dimmed &&
+            n.data.selected === isSelected &&
+            n.data.showHandles === showHandles &&
+            n.style?.opacity === nextOpacity
+          ) {
+            return n;
+          }
+          return {
+            ...n,
+            data: { ...n.data, dimmed, selected: isSelected, showHandles },
+            style: { ...n.style, opacity: nextOpacity },
+          } as SchematNode;
+        }),
+      );
+
+      setEdges((current) =>
+        current.map((e) => {
+          const active = focus === null || e.source === focus || e.target === focus;
+          const opacity = active ? 1 : DIM_OPACITY;
+          const stroke = active && focus !== null ? "#38bdf8" : "#64748b";
+          const wasAnimated = baseAnimated.current.get(e.id) ?? false;
+          const animated = focus !== null && active ? true : wasAnimated;
+          if (
+            e.style?.opacity === opacity &&
+            e.style?.stroke === stroke &&
+            e.animated === animated
+          ) {
+            return e;
+          }
+          return { ...e, style: { ...e.style, opacity, stroke }, animated };
+        }),
+      );
+    },
+    [setNodes, setEdges],
+  );
+
+  // Ref mirror of applyFocus so the schema effect (declared earlier) can call
+  // the latest version without listing it as a dependency.
+  const applyFocusRef = useRef(applyFocus);
+  applyFocusRef.current = applyFocus;
+
+  // Hover: transient preview, but only when no sticky selection is active.
+  const onNodeMouseEnter = useCallback(
+    (_: unknown, node: Node) => {
+      if (selectedRef.current === null) applyFocus(node.id);
+    },
+    [applyFocus],
+  );
+  const onNodeMouseLeave = useCallback(() => {
+    // Restore to the sticky selection (or clear if none).
+    if (selectedRef.current === null) applyFocus(null);
+    else applyFocus(selectedRef.current);
+  }, [applyFocus]);
+
+  // Click a node: make it the sticky focus (or switch to it).
+  const onNodeClick = useCallback(
+    (_: unknown, node: Node) => {
+      selectedRef.current = node.id;
+      applyFocus(node.id);
+    },
+    [applyFocus],
+  );
+
+  // Click empty canvas: clear the sticky selection and restore full view.
+  const onPaneClick = useCallback(() => {
+    selectedRef.current = null;
+    applyFocus(null);
+  }, [applyFocus]);
+
+  // Search: center + zoom to the first TABLE whose name matches the query.
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return;
+    const match = nodes.find((n) => n.type === "table" && n.id.toLowerCase().includes(q));
+    if (!match) return;
+    const rfNode = getNode(match.id);
+    if (!rfNode) return;
+    const w = rfNode.measured?.width ?? 240;
+    const h = rfNode.measured?.height ?? 120;
+    setCenter(rfNode.position.x + w / 2, rfNode.position.y + h / 2, {
+      zoom: 1.2,
+      duration: 400,
+    });
+  }, [query, nodes, getNode, setCenter]);
+
   return (
     <ReactFlow
       nodes={nodes}
@@ -95,6 +226,10 @@ function Canvas({ schema }: { schema: IRSchema }) {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeDragStop={onNodeDragStop}
+      onNodeMouseEnter={onNodeMouseEnter}
+      onNodeMouseLeave={onNodeMouseLeave}
+      onNodeClick={onNodeClick}
+      onPaneClick={onPaneClick}
       nodeTypes={nodeTypes}
       fitView
       minZoom={0.1}
@@ -116,6 +251,7 @@ function Canvas({ schema }: { schema: IRSchema }) {
 export default function App() {
   const initial = useMemo(() => readInitialSchema(), []);
   const [schema, setSchema] = useState<IRSchema | null>(initial);
+  const [query, setQuery] = useState("");
 
   useEffect(() => connectLiveUpdates(setSchema), []);
 
@@ -135,13 +271,20 @@ export default function App() {
       <div className="app">
         <header className="topbar">
           <span className="logo">Schemat</span>
+          <input
+            className="search"
+            type="search"
+            placeholder="Find a table…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
           <span className="stats">
             {schema.tables.length} tables · {schema.relations.length} relations ·{" "}
             {schema.enums.length} enums
           </span>
         </header>
         <div className="canvas-wrap">
-          <Canvas schema={schema} />
+          <Canvas schema={schema} query={query} />
         </div>
       </div>
     </ReactFlowProvider>

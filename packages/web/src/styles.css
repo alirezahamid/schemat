@@ -49,6 +49,7 @@ body,
 .stats {
   font-size: 12px;
   color: var(--text-dim);
+  margin-left: auto;
 }
 
 .canvas-wrap {
@@ -96,6 +97,7 @@ body,
 }
 
 .col-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -153,4 +155,127 @@ body,
   height: 6px;
   background: var(--border-strong);
   border: none;
+}
+
+/* Per-column handles: pinned to the vertical center of THEIR row (the row is
+ * position:relative), and to the row's left/right edge. Subtle until hovered. */
+.col-handle {
+  width: 7px;
+  height: 7px;
+  background: var(--border-strong);
+  top: 50%;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.col-handle.react-flow__handle-left {
+  left: 0;
+}
+
+.col-handle.react-flow__handle-right {
+  right: 0;
+  left: auto;
+}
+
+.table-node:hover .col-handle,
+.table-node.show-handles .col-handle {
+  opacity: 0.7;
+}
+
+/* The click-selected table's dots pop a bit more with the accent colour. */
+.table-node.selected .col-handle {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+/* Node-level fallback handles (m2m edges) — hidden, centered on the node edge. */
+.node-handle {
+  opacity: 0;
+  pointer-events: none;
+  top: 50%;
+}
+
+/* Dim state for hover highlighting. */
+.table-node,
+.enum-node {
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.table-node.dimmed,
+.enum-node.dimmed {
+  filter: saturate(0.4);
+}
+
+/* Sticky click-selected table gets a clear accent outline. */
+.table-node.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 20px rgba(56, 189, 248, 0.25);
+}
+
+/* Search box in the top bar. */
+.search {
+  flex: 0 0 auto;
+  width: 200px;
+  padding: 5px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  outline: none;
+}
+
+.search:focus {
+  border-color: var(--accent);
+}
+
+.search::placeholder {
+  color: var(--text-dim);
+}
+
+/* Enum node. */
+.enum-node {
+  width: 200px;
+  background: #131c2e;
+  border: 1px solid var(--fk);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.enum-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  color: var(--fk);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.enum-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--fk);
+  color: var(--fk);
+}
+
+.enum-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.enum-value {
+  padding: 4px 12px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+
+.enum-value:last-child {
+  border-bottom: none;
 }
