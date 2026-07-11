@@ -78,6 +78,7 @@ export async function layoutSchema(
   pinned: PinnedPositions = {},
 ): Promise<Placement> {
   const raw = collectNodes(schema);
+  const nodeIds = new Set(raw.map((n) => n.id));
 
   const elkNodes: ElkNode[] = raw.map((n) => {
     const fixed = pinned[n.id];
@@ -95,11 +96,15 @@ export async function layoutSchema(
     id: "root",
     layoutOptions,
     children: elkNodes,
-    edges: schema.relations.map((r) => ({
-      id: r.name,
-      sources: [r.fromTable],
-      targets: [r.toTable],
-    })),
+    // Only feed elk edges whose endpoints are real nodes — a relation that
+    // references a missing table would otherwise destabilise the layout.
+    edges: schema.relations
+      .filter((r) => nodeIds.has(r.fromTable) && nodeIds.has(r.toTable))
+      .map((r) => ({
+        id: r.name,
+        sources: [r.fromTable],
+        targets: [r.toTable],
+      })),
   };
 
   const laidOut = await elk.layout(graph);

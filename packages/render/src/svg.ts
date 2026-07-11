@@ -186,7 +186,7 @@ function edgePath(
     `<path d="${d}" fill="none" stroke="${THEME.edge}" stroke-width="1.5"${dashed ? ' stroke-dasharray="5 4"' : ""}/>` +
     `<g transform="translate(${mx - lw / 2},${my - 9})">` +
     `<rect width="${lw}" height="18" rx="3" fill="${THEME.edgeLabelBg}" stroke="${THEME.nodeBorder}"/>` +
-    `<text x="${lw / 2}" y="13" text-anchor="middle" font-family="${MONO}" font-size="10" fill="${THEME.edgeLabelText}">${label}</text>` +
+    `<text x="${lw / 2}" y="13" text-anchor="middle" font-family="${MONO}" font-size="10" fill="${THEME.edgeLabelText}">${esc(label)}</text>` +
     `</g>`
   );
 }
