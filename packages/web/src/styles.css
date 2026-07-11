@@ -177,8 +177,15 @@ body,
   left: auto;
 }
 
-.table-node:hover .col-handle {
+.table-node:hover .col-handle,
+.table-node.selected .col-handle {
   opacity: 0.7;
+}
+
+/* Selected table: make its column dots pop a bit more with the accent. */
+.table-node.selected .col-handle {
+  background: var(--accent);
+  opacity: 0.9;
 }
 
 /* Node-level fallback handles (m2m edges) — hidden, centered on the node edge. */
