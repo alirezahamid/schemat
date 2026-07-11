@@ -1,0 +1,38 @@
+// Repro schema matching the reported edge-anchor bug:
+// User.id (PK) <- OrganizationBookmark.userId (FK). The relation line must
+// anchor at User.id and OrganizationBookmark.userId precisely.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  fullName           String?
+  avatarUrl          String?
+  role               UserRole  @default(USER)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  shadowBannedUntil  DateTime?
+  bookmarks          OrganizationBookmark[]
+}
+
+model OrganizationBookmark {
+  userId         String
+  organizationId Int
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@id([userId, organizationId])
+}

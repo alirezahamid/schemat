@@ -97,6 +97,7 @@ body,
 }
 
 .col-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -156,13 +157,24 @@ body,
   border: none;
 }
 
-/* Per-column handles: sit flush on the row edges, subtle until hovered. */
+/* Per-column handles: pinned to the vertical center of THEIR row (the row is
+ * position:relative), and to the row's left/right edge. Subtle until hovered. */
 .col-handle {
   width: 7px;
   height: 7px;
   background: var(--border-strong);
+  top: 50%;
   opacity: 0;
   transition: opacity 0.15s ease;
+}
+
+.col-handle.react-flow__handle-left {
+  left: 0;
+}
+
+.col-handle.react-flow__handle-right {
+  right: 0;
+  left: auto;
 }
 
 .table-node:hover .col-handle {
