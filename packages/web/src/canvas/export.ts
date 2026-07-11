@@ -55,7 +55,12 @@ function downloadFile(content: string, filename: string, mime: string): void {
  * exports produce identical output.
  */
 export function exportSvg(schema: IRSchema, nodes: Node[]): void {
-  const placement = placementFromNodes(nodes);
-  const svg = renderSvgFromPlacement(schema, placement);
-  downloadFile(svg, "schema.svg", "image/svg+xml");
+  try {
+    const placement = placementFromNodes(nodes);
+    const svg = renderSvgFromPlacement(schema, placement);
+    downloadFile(svg, "schema.svg", "image/svg+xml");
+  } catch (err) {
+    // Never let an export failure silently do nothing — surface it.
+    console.error("Schemat: SVG export failed", err);
+  }
 }
