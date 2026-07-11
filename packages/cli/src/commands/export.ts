@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { renderMermaid, renderSvg } from "@alirezahamid/schemat-render";
 import { prismaParser } from "@alirezahamid/schemat-parser-prisma";
@@ -9,11 +9,40 @@ export type ExportFormat = "svg" | "mermaid";
 export interface ExportOptions {
   root: string;
   format: ExportFormat;
-  /** Output file path. Defaults to `schema.<ext>` in the project root. */
+  /** Output file path, or a directory (a `schema.<ext>` file is written inside). */
   out?: string;
 }
 
 const EXT: Record<ExportFormat, string> = { svg: "svg", mermaid: "mmd" };
+
+/** True if the path already exists and is a directory. */
+async function isExistingDir(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve where to write the export. Rules:
+ *  - no --out            → `<root>/schema.<ext>`
+ *  - --out is a directory (existing, or a trailing-separator path)
+ *                        → `<out>/schema.<ext>`
+ *  - --out is a file path → used as-is
+ */
+async function resolveOutPath(
+  out: string | undefined,
+  root: string,
+  format: ExportFormat,
+): Promise<string> {
+  const filename = `schema.${EXT[format]}`;
+  if (!out) return path.resolve(process.cwd(), root, filename);
+
+  const resolved = path.resolve(process.cwd(), out);
+  const looksLikeDir = /[\\/]$/.test(out) || (await isExistingDir(resolved));
+  return looksLikeDir ? path.join(resolved, filename) : resolved;
+}
 
 /**
  * `schemat export` — parse the project's schema and write a static diagram
@@ -50,10 +79,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
     content = renderMermaid(schema);
   }
 
-  const outPath = path.resolve(
-    process.cwd(),
-    options.out ?? path.join(options.root, `schema.${EXT[format]}`),
-  );
+  const outPath = await resolveOutPath(options.out, options.root, format);
   await mkdir(path.dirname(outPath), { recursive: true });
   await writeFile(outPath, content, "utf8");
 
