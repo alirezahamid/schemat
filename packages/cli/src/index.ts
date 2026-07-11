@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { runDev } from "./commands/dev";
+import { type ExportFormat, runExport } from "./commands/export";
 
 const program = new Command();
 
@@ -16,6 +17,20 @@ program
   .option("-p, --port <number>", "port to serve on", "5173")
   .action(async (opts: { root: string; port: string }) => {
     await runDev({ root: opts.root, port: Number.parseInt(opts.port, 10) });
+  });
+
+program
+  .command("export")
+  .description("Export a static ER diagram (SVG or Mermaid) — commit it to your repo.")
+  .option("-r, --root <dir>", "project root containing the schema", ".")
+  .option("-f, --format <format>", "output format: svg | mermaid", "svg")
+  .option("-o, --out <file>", "output file path (default: <root>/schema.<ext>)")
+  .action(async (opts: { root: string; format: string; out?: string }) => {
+    await runExport({
+      root: opts.root,
+      format: opts.format as ExportFormat,
+      out: opts.out,
+    });
   });
 
 program.parseAsync(process.argv).catch((err) => {
