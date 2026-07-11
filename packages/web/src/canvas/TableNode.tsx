@@ -23,6 +23,8 @@ export interface TableNodeData {
   dimmed?: boolean;
   /** Set while this table is the click-selected focus. */
   selected?: boolean;
+  /** Set on the focused table AND its related tables — reveals column dots. */
+  showHandles?: boolean;
   [key: string]: unknown;
 }
 
@@ -86,7 +88,7 @@ function ColumnRow({ col }: { col: DisplayColumn }) {
 }
 
 function TableNodeComponent({ data }: { data: TableNodeData }) {
-  const cls = `table-node${data.dimmed ? " dimmed" : ""}${data.selected ? " selected" : ""}`;
+  const cls = `table-node${data.dimmed ? " dimmed" : ""}${data.selected ? " selected" : ""}${data.showHandles ? " show-handles" : ""}`;
   return (
     <div className={cls} title={data.comment ?? undefined}>
       {/* Node-level fallback handles (both sides) for m2m edges with no FK column. */}

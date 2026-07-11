@@ -129,17 +129,21 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
         current.map((n): SchematNode => {
           const dimmed = related !== null && !related.has(n.id);
           const isSelected = n.id === selected;
+          // Show column dots on the focused table AND every table it relates to,
+          // so both ends of each relation reveal their connection points.
+          const showHandles = related !== null && related.has(n.id);
           const nextOpacity = dimmed ? DIM_OPACITY : 1;
           if (
             n.data.dimmed === dimmed &&
             n.data.selected === isSelected &&
+            n.data.showHandles === showHandles &&
             n.style?.opacity === nextOpacity
           ) {
             return n;
           }
           return {
             ...n,
-            data: { ...n.data, dimmed, selected: isSelected },
+            data: { ...n.data, dimmed, selected: isSelected, showHandles },
             style: { ...n.style, opacity: nextOpacity },
           } as SchematNode;
         }),
