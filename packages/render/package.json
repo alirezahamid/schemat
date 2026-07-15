@@ -1,0 +1,35 @@
+{
+  "name": "@alirezahamid/schemat-render",
+  "version": "0.0.0",
+  "description": "Headless renderers for Schemat: IR -> static SVG and Mermaid ER diagrams.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts src/node.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@alirezahamid/schemat-core": "workspace:*",
+    "elkjs": "0.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.10",
+    "tsup": "8.3.5",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

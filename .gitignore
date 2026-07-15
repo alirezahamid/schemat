@@ -25,3 +25,4 @@ npm-debug.log*
 # prisma generated client (from example)
 examples/**/node_modules/
 .schemat-cache/
+.github/assets/bug-repro.png
