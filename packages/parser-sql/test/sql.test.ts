@@ -154,4 +154,13 @@ describe("sql parser detect + parse from disk", () => {
     expect(ir2.relations).toHaveLength(2);
     expect(ir2.enums).toHaveLength(1);
   });
+
+  it("handles quoted table names that contain spaces", () => {
+    const ir3 = parseSql('CREATE TABLE "order items" (id INT PRIMARY KEY, sku TEXT);');
+    expect(() => IRSchema.parse(ir3)).not.toThrow();
+    expect(ir3.tables.map((t) => t.name)).toContain("order items");
+    const t = ir3.tables.find((x) => x.name === "order items");
+    expect(t?.columns.map((c) => c.name).sort()).toEqual(["id", "sku"]);
+    expect(t?.columns.find((c) => c.name === "id")?.isPrimaryKey).toBe(true);
+  });
 });

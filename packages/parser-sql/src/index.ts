@@ -269,24 +269,41 @@ function splitTopLevel(body: string): string[] {
 const TABLE_CONSTRAINT_RE =
   /^\s*(?:CONSTRAINT\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w]+)\s+)?(PRIMARY\s+KEY|UNIQUE|FOREIGN\s+KEY|CHECK)\b/i;
 
-/** Read a single identifier from the start of a string; returns [ident, rest]. */
+/** Read a single identifier from the start of a string; returns [ident, rest].
+ *  Handles quoted forms ("x" / `x` / [x]), plain dotted names (a.b.c), and a
+ *  schema-qualified quoted tail (e.g. public."users"). */
 function readIdentifier(s: string): [string, string] {
-  const t = s.trimStart();
+  let t = s.trimStart();
+  let prefix = "";
+
+  // Consume any dotted plain-identifier prefix followed by a dot, so a
+  // schema-qualified name like public."users" or db.public.tbl parses whole.
+  // Loop while we see `<word>.` and the char after the dot starts a new segment.
+  for (;;) {
+    const seg = /^([A-Za-z_]\w*)\./.exec(t);
+    if (!seg) break;
+    prefix += seg[0];
+    t = t.slice(seg[0].length);
+  }
+
   if (t.startsWith('"')) {
     const end = t.indexOf('"', 1);
-    return [t.slice(0, end + 1), t.slice(end + 1)];
+    if (end < 0) return [prefix + t, ""];
+    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
   }
   if (t.startsWith("`")) {
     const end = t.indexOf("`", 1);
-    return [t.slice(0, end + 1), t.slice(end + 1)];
+    if (end < 0) return [prefix + t, ""];
+    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
   }
   if (t.startsWith("[")) {
     const end = t.indexOf("]", 1);
-    return [t.slice(0, end + 1), t.slice(end + 1)];
+    if (end < 0) return [prefix + t, ""];
+    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
   }
   const m = /^[\w.]+/.exec(t);
-  if (m) return [m[0], t.slice(m[0].length)];
-  return ["", t];
+  if (m) return [prefix + m[0], t.slice(m[0].length)];
+  return [prefix, t];
 }
 
 /** Parenthesized column list, e.g. `(a, "b", c)` -> ["a","b","c"]. */
@@ -388,15 +405,22 @@ interface TableResult {
 
 /** Parse one `CREATE TABLE ...` statement. */
 function parseCreateTable(stmt: string): TableResult | null {
-  const m = /^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w."`[\]]+)\s*\(/i.exec(
+  const m = /^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?/i.exec(
     stmt,
   );
   if (!m) return null;
-  const tableName = unquote(m[1] ?? "");
-  const open = stmt.indexOf("(", m.index + m[0].length - 1);
-  const close = matchParen(stmt, open);
-  if (open < 0 || close < 0) return null;
-  const body = stmt.slice(open + 1, close);
+  // Read the (possibly quoted, possibly space-containing) identifier that
+  // follows the keyword prefix, rather than a char-class that stops at spaces.
+  const [rawName, afterName] = readIdentifier(stmt.slice(m[0].length));
+  if (!rawName) return null;
+  const tableName = unquote(rawName);
+  const open = afterName.indexOf("(");
+  if (open < 0) return null;
+  // Recompute the paren index relative to the full statement for matchParen.
+  const openAbs = stmt.length - afterName.length + open;
+  const close = matchParen(stmt, openAbs);
+  if (close < 0) return null;
+  const body = stmt.slice(openAbs + 1, close);
   const items = splitTopLevel(body);
 
   const columns: Column[] = [];
@@ -552,6 +576,9 @@ async function resolveFiles(input: ParserInput): Promise<string[]> {
     const entries = await readdir(input.projectPath);
     const sqls = entries
       .filter((e) => e.toLowerCase().endsWith(".sql"))
+      // Sort for a stable, deterministic merge order — readdir order is not
+      // guaranteed and would otherwise churn snapshots/diffs across machines.
+      .sort()
       .map((e) => path.join(input.projectPath, e));
     if (sqls.length > 0) return sqls;
   } catch {

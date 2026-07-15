@@ -53,4 +53,19 @@ describe("renderDiffMarkdown", () => {
     expect(md).toContain("+ table   Comment");
     expect(md).toContain("schemat snapshot");
   });
+
+  it("uses a fence that can't be broken by backticks in a schema name", () => {
+    // A table name containing a triple-backtick would break a plain ``` fence.
+    const evil: SchemaChange[] = [{ kind: "table.added", table: "we``` ird```` name" }];
+    const md = renderDiffMarkdown(evil);
+    // The opening/closing fence must be LONGER than the longest backtick run
+    // in the body (4 here), so the block can't be terminated early.
+    const fenceMatch = md.match(/\n(`{4,})diff\n/);
+    expect(fenceMatch).not.toBeNull();
+    const fence = fenceMatch?.[1] ?? "";
+    // Body's longest backtick run is 4 → fence is at least 5.
+    expect(fence.length).toBeGreaterThanOrEqual(5);
+    // And the block is properly closed with the same fence.
+    expect(md.trimEnd().endsWith(fence)).toBe(true);
+  });
 });

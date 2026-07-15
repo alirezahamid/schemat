@@ -48,9 +48,29 @@ export function renderDiffText(changes: SchemaChange[]): string {
 }
 
 /**
+ * Choose a code-fence length that can't be broken by backticks inside `body`.
+ * GitHub requires the closing fence to be at least as long as the opening one
+ * and longer than any backtick run inside — so we pick max(3, longestRun + 1).
+ */
+function safeFence(body: string): string {
+  let longest = 0;
+  let run = 0;
+  for (const ch of body) {
+    if (ch === "`") {
+      run += 1;
+      if (run > longest) longest = run;
+    } else {
+      run = 0;
+    }
+  }
+  return "`".repeat(Math.max(3, longest + 1));
+}
+
+/**
  * Render schema changes as a GitHub-flavoured Markdown block, suitable for a PR
- * comment posted by the drift-check Action. Uses a fenced diff block so + / -
- * lines get red/green highlighting on GitHub.
+ * comment posted by the drift-check Action. Uses a fenced diff block (with a
+ * fence long enough to survive backticks in schema names) so + / - lines get
+ * red/green highlighting on GitHub.
  */
 export function renderDiffMarkdown(changes: SchemaChange[]): string {
   if (changes.length === 0) {
@@ -58,12 +78,13 @@ export function renderDiffMarkdown(changes: SchemaChange[]): string {
   }
 
   const body = renderDiffText(changes).trimEnd();
+  const fence = safeFence(body);
   return (
     "### 🔴 Schemat: schema docs are out of date\n\n" +
     "The committed schema snapshot no longer matches the current schema. " +
     "Regenerate it with `schemat snapshot` and commit the result.\n\n" +
-    "```diff\n" +
+    `${fence}diff\n` +
     `${body}\n` +
-    "```\n"
+    `${fence}\n`
   );
 }
