@@ -1,6 +1,7 @@
 // Browser-safe entry: no elk / layout engine. Import this from the web canvas.
 export { renderSvgFromPlacement } from "./svg";
 export { renderMermaid } from "./mermaid";
+export { renderDiffText, renderDiffMarkdown } from "./diff";
 export {
   NODE_WIDTH,
   ROW_HEIGHT,

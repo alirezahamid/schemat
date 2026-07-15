@@ -16,6 +16,7 @@
   "dependencies": {
     "@alirezahamid/schemat-core": "workspace:*",
     "@alirezahamid/schemat-parser-prisma": "workspace:*",
+    "@alirezahamid/schemat-parser-sql": "workspace:*",
     "@alirezahamid/schemat-render": "workspace:*",
     "@alirezahamid/schemat-web": "workspace:*",
     "chokidar": "4.0.3",
