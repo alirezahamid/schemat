@@ -27,9 +27,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Check schema drift
-        uses: alirezahamid/schemat@v1
+        uses: alirezahamid/schemat@v0
         with:
           root: "."
           # version: latest

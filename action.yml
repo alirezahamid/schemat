@@ -29,9 +29,14 @@ runs:
     - name: Run schemat check
       id: check
       shell: bash
+      env:
+        # Pass inputs via env — NEVER interpolate ${{ inputs.* }} directly into
+        # the script, or a shell metacharacter in an input could inject commands.
+        SCHEMAT_VERSION: ${{ inputs.version }}
+        SCHEMAT_ROOT: ${{ inputs.root }}
       run: |
         set +e
-        OUTPUT="$(npx -y @schemat/cli@${{ inputs.version }} check --root '${{ inputs.root }}' --format markdown)"
+        OUTPUT="$(npx -y "@schemat/cli@${SCHEMAT_VERSION}" check --root "$SCHEMAT_ROOT" --format markdown)"
         CODE=$?
         set -e
         # Random, unguessable delimiter so schema content can never terminate

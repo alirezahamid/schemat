@@ -81,6 +81,18 @@ Then tag it:
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
+### The moving `v0` Action tag
+
+The bundled GitHub Action is consumed as `alirezahamid/schemat@v0` (a moving
+major tag). After each release, point `v0` at the new release commit so
+consumers get updates without changing their workflow:
+
+```bash
+git tag -f v0 && git push origin v0 --force
+```
+
+Bump to `v1` only when you publish `1.0.0` (and keep `v0` frozen for older users).
+
 ## Ongoing releases (automated)
 
 1. Every PR with a user-facing change includes a changeset (`pnpm changeset`).
