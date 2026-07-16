@@ -1,4 +1,4 @@
-import type { IRSchema } from "@alirezahamid/schemat-core";
+import type { IRSchema } from "@schemat/core";
 import type { Edge, Node } from "@xyflow/react";
 import type { EnumNodeData } from "./EnumNode";
 import type { TableNodeData } from "./TableNode";
@@ -24,11 +24,7 @@ export type HandleSide = "left" | "right";
  * relation render handles; each such column exposes a source and a target
  * handle on BOTH sides, and the edge resolver picks the side facing the peer.
  */
-export function columnHandle(
-  column: string,
-  role: "source" | "target",
-  side: HandleSide,
-): string {
+export function columnHandle(column: string, role: "source" | "target", side: HandleSide): string {
   return `${column}::${role}::${side}`;
 }
 

@@ -1,6 +1,6 @@
 {
-  "name": "@alirezahamid/schemat-web",
-  "version": "0.0.0",
+  "name": "@schemat/web",
+  "version": "0.1.0",
   "description": "Interactive schema canvas for Schemat (React Flow).",
   "license": "MIT",
   "type": "module",
@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@alirezahamid/schemat-core": "workspace:*",
-    "@alirezahamid/schemat-render": "workspace:*",
+    "@schemat/core": "workspace:*",
+    "@schemat/render": "workspace:*",
     "@xyflow/react": "12.3.6",
     "elkjs": "0.9.3",
     "react": "18.3.1",
@@ -25,5 +25,20 @@
     "@vitejs/plugin-react": "4.3.4",
     "typescript": "5.7.2",
     "vite": "5.4.11"
+  },
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "homepage": "https://github.com/alirezahamid/schemat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alirezahamid/schemat.git",
+    "directory": "packages/web"
+  },
+  "bugs": {
+    "url": "https://github.com/alirezahamid/schemat/issues"
+  },
+  "keywords": ["erd", "react", "react-flow", "canvas", "schema", "viewer"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

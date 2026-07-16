@@ -1,11 +1,11 @@
-import type { IRSchema } from "@alirezahamid/schemat-core";
+import type { IRSchema } from "@schemat/core";
 import {
   NODE_WIDTH,
   type PlacedNode,
   type Placement,
   nodeHeight,
   renderSvgFromPlacement,
-} from "@alirezahamid/schemat-render";
+} from "@schemat/render";
 import type { Node } from "@xyflow/react";
 
 /**

@@ -1,4 +1,4 @@
-import type { SchemaChange } from "@alirezahamid/schemat-core";
+import type { SchemaChange } from "@schemat/core";
 
 /**
  * Render a list of schema changes as human-readable text (for terminals and PR
@@ -42,7 +42,9 @@ export function renderDiffText(changes: SchemaChange[]): string {
   const removed = changes.filter((c) => c.kind.endsWith(".removed")).length;
   const changed = changes.filter((c) => c.kind.endsWith(".changed")).length;
   lines.push("");
-  lines.push(`${changes.length} change(s): +${added} added, -${removed} removed, ~${changed} changed`);
+  lines.push(
+    `${changes.length} change(s): +${added} added, -${removed} removed, ~${changed} changed`,
+  );
 
   return `${lines.join("\n")}\n`;
 }
@@ -79,12 +81,5 @@ export function renderDiffMarkdown(changes: SchemaChange[]): string {
 
   const body = renderDiffText(changes).trimEnd();
   const fence = safeFence(body);
-  return (
-    "### 🔴 Schemat: schema docs are out of date\n\n" +
-    "The committed schema snapshot no longer matches the current schema. " +
-    "Regenerate it with `schemat snapshot` and commit the result.\n\n" +
-    `${fence}diff\n` +
-    `${body}\n` +
-    `${fence}\n`
-  );
+  return `### 🔴 Schemat: schema docs are out of date\n\nThe committed schema snapshot no longer matches the current schema. Regenerate it with \`schemat snapshot\` and commit the result.\n\n${fence}diff\n${body}\n${fence}\n`;
 }

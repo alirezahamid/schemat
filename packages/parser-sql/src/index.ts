@@ -9,8 +9,8 @@ import type {
   Relation,
   SchemaParser,
   Table,
-} from "@alirezahamid/schemat-core";
-import { IR_VERSION, parseSchema } from "@alirezahamid/schemat-core";
+} from "@schemat/core";
+import { IR_VERSION, parseSchema } from "@schemat/core";
 
 /* -------------------------------------------------------------------------- */
 /* Type mapping                                                               */
@@ -174,10 +174,7 @@ function unquote(ident: string): string {
   const parts = splitDotted(id);
   id = parts[parts.length - 1] ?? id;
   id = id.trim();
-  if (
-    (id.startsWith('"') && id.endsWith('"')) ||
-    (id.startsWith("`") && id.endsWith("`"))
-  ) {
+  if ((id.startsWith('"') && id.endsWith('"')) || (id.startsWith("`") && id.endsWith("`"))) {
     return id.slice(1, -1);
   }
   if (id.startsWith("[") && id.endsWith("]")) {
@@ -376,10 +373,11 @@ function parseColumnDef(def: string): ColumnParseResult | null {
   const inlineUnique = /\bUNIQUE\b/i.test(def);
 
   let defaultVal: string | null = null;
-  const defMatch = /\bDEFAULT\s+(.+?)(?=\s+(?:NOT\s+NULL|NULL|PRIMARY\s+KEY|UNIQUE|REFERENCES|CHECK|COLLATE|GENERATED)\b|$)/is.exec(
-    def,
-  );
-  if (defMatch && defMatch[1]) {
+  const defMatch =
+    /\bDEFAULT\s+(.+?)(?=\s+(?:NOT\s+NULL|NULL|PRIMARY\s+KEY|UNIQUE|REFERENCES|CHECK|COLLATE|GENERATED)\b|$)/is.exec(
+      def,
+    );
+  if (defMatch?.[1]) {
     defaultVal = defMatch[1].trim().replace(/,\s*$/, "");
   }
   void upper;
@@ -405,9 +403,10 @@ interface TableResult {
 
 /** Parse one `CREATE TABLE ...` statement. */
 function parseCreateTable(stmt: string): TableResult | null {
-  const m = /^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?/i.exec(
-    stmt,
-  );
+  const m =
+    /^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?/i.exec(
+      stmt,
+    );
   if (!m) return null;
   // Read the (possibly quoted, possibly space-containing) identifier that
   // follows the keyword prefix, rather than a char-class that stops at spaces.
@@ -490,11 +489,7 @@ function parseTableLevelFk(item: string, fromTable: string): Relation | null {
   };
 }
 
-function makeRelation(
-  fromTable: string,
-  fromColumn: string,
-  fk: ParsedInlineFk,
-): Relation {
+function makeRelation(fromTable: string, fromColumn: string, fk: ParsedInlineFk): Relation {
   return {
     name: `${fromTable}_${fromColumn}_fkey`,
     fromTable,
@@ -511,9 +506,7 @@ function makeRelation(
 
 /** Parse a Postgres `CREATE TYPE name AS ENUM ('a','b')` statement. */
 function parseCreateEnum(stmt: string): Enum | null {
-  const m = /^CREATE\s+TYPE\s+([\w."`[\]]+)\s+AS\s+ENUM\s*\(([\s\S]*)\)\s*$/i.exec(
-    stmt,
-  );
+  const m = /^CREATE\s+TYPE\s+([\w."`[\]]+)\s+AS\s+ENUM\s*\(([\s\S]*)\)\s*$/i.exec(stmt);
   if (!m) return null;
   const name = unquote(m[1] ?? "");
   const values = splitTopLevel(m[2] ?? "")

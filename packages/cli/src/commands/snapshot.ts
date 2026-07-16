@@ -1,5 +1,5 @@
 import path from "node:path";
-import { resolveSchema, SUPPORTED_SOURCES } from "../schema-source";
+import { SUPPORTED_SOURCES, resolveSchema } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
 
 export interface SnapshotOptions {

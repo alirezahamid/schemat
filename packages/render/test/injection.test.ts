@@ -1,5 +1,5 @@
+import type { IRSchema } from "@schemat/core";
 import { describe, expect, it } from "vitest";
-import type { IRSchema } from "@alirezahamid/schemat-core";
 import { renderMermaid } from "../src/mermaid";
 import { renderSvg } from "../src/render-node";
 
@@ -68,7 +68,9 @@ describe("renderMermaid — injection safety", () => {
     const lines = out.split("\n");
     expect(lines[0]).toBe("erDiagram");
     // No other line may reintroduce a bare "erDiagram" directive.
-    expect(lines.slice(1).some((l) => l.trim() === "erDiagram evil" || l.trim().startsWith("erDiagram"))).toBe(false);
+    expect(
+      lines.slice(1).some((l) => l.trim() === "erDiagram evil" || l.trim().startsWith("erDiagram")),
+    ).toBe(false);
     // Entity/attribute identifier lines must be safe tokens or quoted labels only.
     // No unescaped stray double-quote should appear outside a `: "..."` label.
     for (const line of lines) {

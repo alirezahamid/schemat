@@ -1,4 +1,4 @@
-import type { Column } from "@alirezahamid/schemat-core";
+import type { Column } from "@schemat/core";
 import { Handle, Position } from "@xyflow/react";
 import { memo } from "react";
 import {
@@ -92,10 +92,30 @@ function TableNodeComponent({ data }: { data: TableNodeData }) {
   return (
     <div className={cls} title={data.comment ?? undefined}>
       {/* Node-level fallback handles (both sides) for m2m edges with no FK column. */}
-      <Handle type="target" position={Position.Left} id={DEFAULT_TARGET_HANDLE_LEFT} className="handle node-handle" />
-      <Handle type="source" position={Position.Left} id={DEFAULT_SOURCE_HANDLE_LEFT} className="handle node-handle" />
-      <Handle type="target" position={Position.Right} id={DEFAULT_TARGET_HANDLE_RIGHT} className="handle node-handle" />
-      <Handle type="source" position={Position.Right} id={DEFAULT_SOURCE_HANDLE_RIGHT} className="handle node-handle" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id={DEFAULT_TARGET_HANDLE_LEFT}
+        className="handle node-handle"
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id={DEFAULT_SOURCE_HANDLE_LEFT}
+        className="handle node-handle"
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id={DEFAULT_TARGET_HANDLE_RIGHT}
+        className="handle node-handle"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={DEFAULT_SOURCE_HANDLE_RIGHT}
+        className="handle node-handle"
+      />
       <div className="table-header">{data.name}</div>
       <div className="table-body">
         {data.columns.map((col) => (

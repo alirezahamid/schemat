@@ -1,8 +1,8 @@
-import path from "node:path";
 import { stat } from "node:fs/promises";
-import type { IRSchema, SchemaParser } from "@alirezahamid/schemat-core";
-import { prismaParser } from "@alirezahamid/schemat-parser-prisma";
-import { sqlParser } from "@alirezahamid/schemat-parser-sql";
+import path from "node:path";
+import type { IRSchema, SchemaParser } from "@schemat/core";
+import { prismaParser } from "@schemat/parser-prisma";
+import { sqlParser } from "@schemat/parser-sql";
 
 /**
  * All parsers Schemat knows about, in detection priority order. Adding a source
@@ -49,7 +49,10 @@ export async function resolveSchemaFrom(target: string): Promise<IRSchema | null
   // with an explicit files override.
   const ext = path.extname(resolved).toLowerCase();
   if (ext === ".prisma") {
-    return prismaParser.parse({ projectPath: path.dirname(path.dirname(resolved)), files: [resolved] });
+    return prismaParser.parse({
+      projectPath: path.dirname(path.dirname(resolved)),
+      files: [resolved],
+    });
   }
   if (ext === ".sql") {
     return sqlParser.parse({ projectPath: path.dirname(resolved), files: [resolved] });

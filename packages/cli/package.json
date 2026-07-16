@@ -1,7 +1,7 @@
 {
-  "name": "@alirezahamid/schemat",
-  "version": "0.0.0",
-  "description": "Git-native database schema documentation — live interactive ER diagrams from your repo.",
+  "name": "@schemat/cli",
+  "version": "0.1.0",
+  "description": "Git-native database schema documentation \u2014 live interactive ER diagrams from your repo.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -9,16 +9,16 @@
   },
   "files": ["dist"],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --clean --no-splitting",
+    "build": "tsup",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts dev --root ../../examples/blog"
   },
   "dependencies": {
-    "@alirezahamid/schemat-core": "workspace:*",
-    "@alirezahamid/schemat-parser-prisma": "workspace:*",
-    "@alirezahamid/schemat-parser-sql": "workspace:*",
-    "@alirezahamid/schemat-render": "workspace:*",
-    "@alirezahamid/schemat-web": "workspace:*",
+    "@schemat/core": "workspace:*",
+    "@schemat/parser-prisma": "workspace:*",
+    "@schemat/parser-sql": "workspace:*",
+    "@schemat/render": "workspace:*",
+    "@schemat/web": "workspace:*",
     "chokidar": "4.0.3",
     "commander": "12.1.0",
     "ws": "8.18.0"
@@ -29,5 +29,29 @@
     "tsup": "8.3.5",
     "tsx": "4.19.2",
     "typescript": "5.7.2"
+  },
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "homepage": "https://github.com/alirezahamid/schemat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alirezahamid/schemat.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/alirezahamid/schemat/issues"
+  },
+  "keywords": [
+    "prisma",
+    "erd",
+    "schema",
+    "database",
+    "er-diagram",
+    "git-native",
+    "documentation",
+    "cli"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

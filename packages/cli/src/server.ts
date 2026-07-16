@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import path from "node:path";
-import type { IRSchema } from "@alirezahamid/schemat-core";
-import { WebSocketServer, type WebSocket } from "ws";
+import type { IRSchema } from "@schemat/core";
+import { type WebSocket, WebSocketServer } from "ws";
 import { type LayoutFile, type Position, loadLayout, saveLayout } from "./layout";
 import { resolveWebDist } from "./web-assets";
 

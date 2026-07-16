@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in Schemat isn't working as expected.
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Schemat version
+      description: Output of `schemat --version` (or the npm version you installed).
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: command
+    attributes:
+      label: Which command?
+      options:
+        - dev
+        - export
+        - snapshot
+        - check
+        - diff
+        - GitHub Action
+        - other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: schema
+    attributes:
+      label: Minimal schema to reproduce
+      description: The smallest `schema.prisma` / SQL snippet that triggers the bug. Redact anything private.
+      render: prisma
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `schemat export -r .`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What you expected to happen, and what actually happened (include full error output).
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Node version (`node -v`), package manager.
+      placeholder: "macOS 14, Node 22.13, pnpm 9"
+    validations:
+      required: true

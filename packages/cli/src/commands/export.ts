@@ -1,8 +1,8 @@
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { renderMermaid, renderSvg } from "@alirezahamid/schemat-render/node";
+import { renderMermaid, renderSvg } from "@schemat/render/node";
 import { loadLayout } from "../layout";
-import { resolveSchema, SUPPORTED_SOURCES } from "../schema-source";
+import { SUPPORTED_SOURCES, resolveSchema } from "../schema-source";
 
 export type ExportFormat = "svg" | "mermaid";
 

@@ -1,4 +1,4 @@
-import type { IRSchema } from "@alirezahamid/schemat-core";
+import type { IRSchema } from "@schemat/core";
 
 /**
  * Mermaid ER identifiers (entity + attribute names) must be bare tokens matching

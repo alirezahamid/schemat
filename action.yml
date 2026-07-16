@@ -11,7 +11,7 @@ inputs:
     required: false
     default: "."
   version:
-    description: "Version of @alirezahamid/schemat to run (npm dist-tag or version)."
+    description: "Version of @schemat/cli to run (npm dist-tag or version)."
     required: false
     default: "latest"
   comment:
@@ -31,7 +31,7 @@ runs:
       shell: bash
       run: |
         set +e
-        OUTPUT="$(npx -y @alirezahamid/schemat@${{ inputs.version }} check --root '${{ inputs.root }}' --format markdown)"
+        OUTPUT="$(npx -y @schemat/cli@${{ inputs.version }} check --root '${{ inputs.root }}' --format markdown)"
         CODE=$?
         set -e
         # Random, unguessable delimiter so schema content can never terminate

@@ -1,6 +1,6 @@
 import path from "node:path";
+import { SUPPORTED_SOURCES, detectParser } from "../schema-source";
 import { startServer } from "../server";
-import { detectParser, SUPPORTED_SOURCES } from "../schema-source";
 import { watchSchema } from "../watch";
 
 export interface DevOptions {

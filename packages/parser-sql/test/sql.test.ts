@@ -1,7 +1,7 @@
-import path from "node:path";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { IRSchema } from "@alirezahamid/schemat-core";
+import path from "node:path";
+import { IRSchema } from "@schemat/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseSql, sqlParser } from "../src/index";
 
@@ -46,11 +46,7 @@ describe("sql parser", () => {
   });
 
   it("extracts all tables (quoted / schema-prefixed / plain)", () => {
-    expect(ir.tables.map((t) => t.name).sort()).toEqual([
-      "comments",
-      "posts",
-      "users",
-    ]);
+    expect(ir.tables.map((t) => t.name).sort()).toEqual(["comments", "posts", "users"]);
   });
 
   it("maps canonical column types", () => {
@@ -97,9 +93,7 @@ describe("sql parser", () => {
   });
 
   it("extracts an inline foreign key (posts.author_id -> users.id)", () => {
-    const rel = ir.relations.find(
-      (r) => r.fromTable === "posts" && r.toTable === "users",
-    );
+    const rel = ir.relations.find((r) => r.fromTable === "posts" && r.toTable === "users");
     expect(rel).toMatchObject({
       name: "posts_author_id_fkey",
       fromColumns: ["author_id"],
@@ -109,9 +103,7 @@ describe("sql parser", () => {
   });
 
   it("extracts a table-level foreign key (comments.post_id -> posts.id)", () => {
-    const rel = ir.relations.find(
-      (r) => r.fromTable === "comments" && r.toTable === "posts",
-    );
+    const rel = ir.relations.find((r) => r.fromTable === "comments" && r.toTable === "posts");
     expect(rel).toMatchObject({
       name: "comments_post_id_fkey",
       fromColumns: ["post_id"],
@@ -121,9 +113,7 @@ describe("sql parser", () => {
   });
 
   it("extracts the enum type", () => {
-    expect(ir.enums).toEqual([
-      { name: "user_role", values: ["admin", "member", "guest"] },
-    ]);
+    expect(ir.enums).toEqual([{ name: "user_role", values: ["admin", "member", "guest"] }]);
   });
 });
 
@@ -144,7 +134,7 @@ describe("sql parser detect + parse from disk", () => {
   });
 
   it("does not detect a project without any .sql", async () => {
-    expect(await sqlParser.detect(tmpdir() + "/definitely-not-here-xyz")).toBe(false);
+    expect(await sqlParser.detect(`${tmpdir()}/definitely-not-here-xyz`)).toBe(false);
   });
 
   it("parses the file into valid IR", async () => {

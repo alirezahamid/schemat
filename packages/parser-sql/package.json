@@ -1,6 +1,6 @@
 {
-  "name": "@alirezahamid/schemat-parser-sql",
-  "version": "0.0.0",
+  "name": "@schemat/parser-sql",
+  "version": "0.1.0",
   "description": "SQL DDL parser for Schemat (CREATE TABLE -> IR).",
   "license": "MIT",
   "type": "module",
@@ -19,12 +19,27 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@alirezahamid/schemat-core": "workspace:*"
+    "@schemat/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "20.17.10",
     "tsup": "8.3.5",
     "typescript": "5.7.2",
     "vitest": "2.1.8"
+  },
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "homepage": "https://github.com/alirezahamid/schemat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alirezahamid/schemat.git",
+    "directory": "packages/parser-sql"
+  },
+  "bugs": {
+    "url": "https://github.com/alirezahamid/schemat/issues"
+  },
+  "keywords": ["sql", "erd", "schema", "ddl", "parser"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

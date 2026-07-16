@@ -1,7 +1,7 @@
 import path from "node:path";
-import { diff } from "@alirezahamid/schemat-core";
-import { renderDiffMarkdown, renderDiffText } from "@alirezahamid/schemat-render/node";
-import { resolveSchema, SUPPORTED_SOURCES } from "../schema-source";
+import { diff } from "@schemat/core";
+import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
+import { SUPPORTED_SOURCES, resolveSchema } from "../schema-source";
 import { loadSnapshot, snapshotPath } from "../snapshot";
 
 export interface CheckOptions {
@@ -29,7 +29,8 @@ export async function runCheck(options: CheckOptions): Promise<void> {
 
   const snapshot = await loadSnapshot(projectPath);
   if (!snapshot) {
-    const rel = path.relative(process.cwd(), snapshotPath(projectPath)) || snapshotPath(projectPath);
+    const rel =
+      path.relative(process.cwd(), snapshotPath(projectPath)) || snapshotPath(projectPath);
     console.error(
       `No committed snapshot at ${rel}.\nRun \`schemat snapshot\` and commit the result first.`,
     );

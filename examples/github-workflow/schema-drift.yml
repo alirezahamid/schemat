@@ -2,7 +2,7 @@
 # schema, and comment the diff on the PR.
 #
 # Setup (once, in your repo):
-#   npx @alirezahamid/schemat snapshot     # writes .schemat/schema.snapshot.json
+#   npx @schemat/cli snapshot     # writes .schemat/schema.snapshot.json
 #   git add .schemat/schema.snapshot.json && git commit -m "chore: schema snapshot"
 #
 # Then this workflow keeps the snapshot honest on every PR.
