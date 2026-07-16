@@ -1,0 +1,78 @@
+name: "Schemat Drift Check"
+description: "Fail the build when your committed schema snapshot drifts from the live schema, and comment the diff on the PR."
+author: "alirezahamid"
+branding:
+  icon: "git-branch"
+  color: "blue"
+
+inputs:
+  root:
+    description: "Project root containing the schema (and .schemat/schema.snapshot.json)."
+    required: false
+    default: "."
+  version:
+    description: "Version of @alirezahamid/schemat to run (npm dist-tag or version)."
+    required: false
+    default: "latest"
+  comment:
+    description: "Post the drift result as a PR comment (true/false)."
+    required: false
+    default: "true"
+  github-token:
+    description: "Token used to post the PR comment. Defaults to the workflow token."
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run schemat check
+      id: check
+      shell: bash
+      run: |
+        set +e
+        OUTPUT="$(npx -y @alirezahamid/schemat@${{ inputs.version }} check --root '${{ inputs.root }}' --format markdown)"
+        CODE=$?
+        set -e
+        # Random, unguessable delimiter so schema content can never terminate
+        # the multiline output block early.
+        DELIM="SCHEMAT_$(openssl rand -hex 16 2>/dev/null || date +%s%N)"
+        {
+          echo "body<<${DELIM}"
+          echo "$OUTPUT"
+          echo "${DELIM}"
+        } >> "$GITHUB_OUTPUT"
+        echo "exit_code=$CODE" >> "$GITHUB_OUTPUT"
+        # Echo to the job log regardless.
+        echo "$OUTPUT"
+
+    - name: Comment on PR
+      if: ${{ inputs.comment == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      env:
+        # Pass the (untrusted) body as data via the environment — NEVER
+        # interpolate it into the script source, or a schema name containing
+        # backticks / ${...} could break out of the template literal.
+        SCHEMAT_BODY: ${{ steps.check.outputs.body }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const marker = "<!-- schemat-drift-check -->";
+          const body = process.env.SCHEMAT_BODY || "";
+          const { owner, repo } = context.repo;
+          const issue_number = context.issue.number;
+          const full = `${marker}\n${body}`;
+          const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+          const existing = comments.find((c) => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: full });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body: full });
+          }
+
+    - name: Fail on drift
+      if: ${{ steps.check.outputs.exit_code != '0' }}
+      shell: bash
+      run: |
+        echo "::error::Schema snapshot is out of date. Run 'schemat snapshot' and commit .schemat/schema.snapshot.json."
+        exit 1

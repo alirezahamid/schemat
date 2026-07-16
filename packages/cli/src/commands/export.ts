@@ -1,8 +1,8 @@
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { renderMermaid, renderSvg } from "@alirezahamid/schemat-render/node";
-import { prismaParser } from "@alirezahamid/schemat-parser-prisma";
 import { loadLayout } from "../layout";
+import { resolveSchema, SUPPORTED_SOURCES } from "../schema-source";
 
 export type ExportFormat = "svg" | "mermaid";
 
@@ -59,17 +59,14 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const detected = await prismaParser.detect(projectPath);
-  if (!detected) {
+  const schema = await resolveSchema(projectPath);
+  if (!schema) {
     console.error(
-      `No Prisma schema found under ${projectPath}/prisma/schema.prisma.\n` +
-        "Run schemat export from a project with a Prisma schema, or pass --root <dir>.",
+      `No schema found under ${projectPath}.\nExpected ${SUPPORTED_SOURCES}, or pass --root <dir>.`,
     );
     process.exitCode = 1;
     return;
   }
-
-  const schema = await prismaParser.parse({ projectPath });
 
   let content: string;
   if (format === "svg") {

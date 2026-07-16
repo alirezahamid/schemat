@@ -1,0 +1,36 @@
+# Example: fail a PR when the committed schema snapshot drifts from the live
+# schema, and comment the diff on the PR.
+#
+# Setup (once, in your repo):
+#   npx @alirezahamid/schemat snapshot     # writes .schemat/schema.snapshot.json
+#   git add .schemat/schema.snapshot.json && git commit -m "chore: schema snapshot"
+#
+# Then this workflow keeps the snapshot honest on every PR.
+name: Schema drift
+
+on:
+  pull_request:
+    # Optional: only run when schema-related files change.
+    # paths:
+    #   - "prisma/**"
+    #   - "**/*.sql"
+    #   - ".schemat/schema.snapshot.json"
+
+permissions:
+  contents: read
+  pull-requests: write # needed to post/update the drift comment
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check schema drift
+        uses: alirezahamid/schemat@v1
+        with:
+          root: "."
+          # version: latest
+          # comment: "true"

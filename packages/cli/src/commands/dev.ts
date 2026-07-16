@@ -1,6 +1,6 @@
 import path from "node:path";
-import { prismaParser } from "@alirezahamid/schemat-parser-prisma";
 import { startServer } from "../server";
+import { detectParser, SUPPORTED_SOURCES } from "../schema-source";
 import { watchSchema } from "../watch";
 
 export interface DevOptions {
@@ -15,17 +15,16 @@ export interface DevOptions {
 export async function runDev(options: DevOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const detected = await prismaParser.detect(projectPath);
-  if (!detected) {
+  const parser = await detectParser(projectPath);
+  if (!parser) {
     console.error(
-      `No Prisma schema found under ${projectPath}/prisma/schema.prisma.\n` +
-        "Run schemat dev from a project with a Prisma schema, or pass --root <dir>.",
+      `No schema found under ${projectPath}.\nExpected ${SUPPORTED_SOURCES}, or pass --root <dir>.`,
     );
     process.exitCode = 1;
     return;
   }
 
-  const schema = await prismaParser.parse({ projectPath });
+  const schema = await parser.parse({ projectPath });
   const server = await startServer(schema, options.port, projectPath);
 
   const url = `http://localhost:${server.port}`;
@@ -33,7 +32,7 @@ export async function runDev(options: DevOptions): Promise<void> {
   console.log(`  Watching ${path.relative(process.cwd(), projectPath) || "."} for changes\n`);
 
   const watcher = watchSchema(
-    prismaParser,
+    parser,
     projectPath,
     (next) => {
       server.broadcast(next);
