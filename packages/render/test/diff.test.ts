@@ -1,5 +1,5 @@
+import type { SchemaChange } from "@schemat/core";
 import { describe, expect, it } from "vitest";
-import type { SchemaChange } from "@alirezahamid/schemat-core";
 import { renderDiffMarkdown, renderDiffText } from "../src/diff";
 
 const changes: SchemaChange[] = [

@@ -33,7 +33,12 @@ function coerce(value: unknown): LayoutFile | null {
   for (const [name, pos] of Object.entries(v.positions as Record<string, unknown>)) {
     if (typeof pos !== "object" || pos === null) continue;
     const p = pos as Record<string, unknown>;
-    if (typeof p.x === "number" && typeof p.y === "number" && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+    if (
+      typeof p.x === "number" &&
+      typeof p.y === "number" &&
+      Number.isFinite(p.x) &&
+      Number.isFinite(p.y)
+    ) {
       positions[name] = { x: p.x, y: p.y };
     }
   }

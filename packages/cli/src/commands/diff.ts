@@ -1,5 +1,5 @@
-import { diff } from "@alirezahamid/schemat-core";
-import { renderDiffMarkdown, renderDiffText } from "@alirezahamid/schemat-render/node";
+import { diff } from "@schemat/core";
+import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
 import { resolveSchemaFrom } from "../schema-source";
 
 export interface DiffOptions {
@@ -18,13 +18,17 @@ export interface DiffOptions {
 export async function runDiff(options: DiffOptions): Promise<void> {
   const before = await resolveSchemaFrom(options.before);
   if (!before) {
-    console.error(`No schema found at "${options.before}" (expected a project dir, .prisma, or .sql).`);
+    console.error(
+      `No schema found at "${options.before}" (expected a project dir, .prisma, or .sql).`,
+    );
     process.exitCode = 1;
     return;
   }
   const after = await resolveSchemaFrom(options.after);
   if (!after) {
-    console.error(`No schema found at "${options.after}" (expected a project dir, .prisma, or .sql).`);
+    console.error(
+      `No schema found at "${options.after}" (expected a project dir, .prisma, or .sql).`,
+    );
     process.exitCode = 1;
     return;
   }

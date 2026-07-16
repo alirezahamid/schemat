@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { IRSchema } from "@alirezahamid/schemat-core";
+import { IRSchema } from "@schemat/core";
 import { describe, expect, it } from "vitest";
 import { prismaParser } from "../src/index";
 

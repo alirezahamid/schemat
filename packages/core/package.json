@@ -1,6 +1,6 @@
 {
-  "name": "@alirezahamid/schemat-core",
-  "version": "0.0.0",
+  "name": "@schemat/core",
+  "version": "0.1.0",
   "description": "Canonical IR, parser interface, and differ for Schemat.",
   "license": "MIT",
   "type": "module",
@@ -25,5 +25,20 @@
     "tsup": "8.3.5",
     "typescript": "5.7.2",
     "vitest": "2.1.8"
+  },
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "homepage": "https://github.com/alirezahamid/schemat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alirezahamid/schemat.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/alirezahamid/schemat/issues"
+  },
+  "keywords": ["prisma", "erd", "schema", "ir", "database", "er-diagram"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

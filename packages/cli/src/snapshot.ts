@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { type IRSchema, parseSchema } from "@alirezahamid/schemat-core";
+import { type IRSchema, parseSchema } from "@schemat/core";
 
 const SNAPSHOT_DIR = ".schemat";
 const SNAPSHOT_FILE = "schema.snapshot.json";

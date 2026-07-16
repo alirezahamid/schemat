@@ -1,4 +1,4 @@
-import type { IRSchema } from "@alirezahamid/schemat-core";
+import type { IRSchema } from "@schemat/core";
 import type { PinnedPositions } from "./geometry";
 import { layoutSchema } from "./layout";
 import { renderSvgFromPlacement } from "./svg";

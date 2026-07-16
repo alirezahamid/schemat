@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { IRSchema, SchemaParser } from "@alirezahamid/schemat-core";
+import type { IRSchema, SchemaParser } from "@schemat/core";
 import chokidar from "chokidar";
 
 /** A watcher handle that fully tears down timers and in-flight work. */

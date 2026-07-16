@@ -1,4 +1,4 @@
-import type { IRSchema } from "@alirezahamid/schemat-core";
+import type { IRSchema } from "@schemat/core";
 import {
   Background,
   Controls,
@@ -13,10 +13,10 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { exportSvg } from "./canvas/export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EnumNode } from "./canvas/EnumNode";
 import { TableNode } from "./canvas/TableNode";
+import { exportSvg } from "./canvas/export";
 import { type SchematNode, resolveEdgeHandles, schemaToGraph } from "./canvas/graph";
 import { layoutGraph } from "./canvas/layout";
 import {
@@ -64,6 +64,9 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
     setEdges((currentEdges) => resolveEdgeHandles(currentEdges, current));
   }, [getNodes, setEdges]);
 
+  // This effect intentionally re-runs only when `schema` changes (live reload).
+  // The setState/getNodes helpers are stable and excluded on purpose.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on schema by design
   useEffect(() => {
     let cancelled = false;
     const { nodes: rawNodes, edges: rawEdges } = schemaToGraph(schema);
@@ -133,7 +136,7 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
           const isSelected = n.id === selected;
           // Show column dots on the focused table AND every table it relates to,
           // so both ends of each relation reveal their connection points.
-          const showHandles = related !== null && related.has(n.id);
+          const showHandles = related?.has(n.id);
           const nextOpacity = dimmed ? DIM_OPACITY : 1;
           if (
             n.data.dimmed === dimmed &&
@@ -245,7 +248,12 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
       <Background color="#1e293b" gap={20} />
       <Controls />
       <Panel position="top-right">
-        <button type="button" className="export-btn" onClick={onExport} title="Download the diagram as SVG">
+        <button
+          type="button"
+          className="export-btn"
+          onClick={onExport}
+          title="Download the diagram as SVG"
+        >
           ↓ Export SVG
         </button>
       </Panel>
@@ -272,7 +280,9 @@ export default function App() {
       <div className="empty-state">
         <div>
           <h1>Schemat</h1>
-          <p>No schema loaded. Run <code>schemat dev</code> in a project with a Prisma schema.</p>
+          <p>
+            No schema loaded. Run <code>schemat dev</code> in a project with a Prisma schema.
+          </p>
         </div>
       </div>
     );

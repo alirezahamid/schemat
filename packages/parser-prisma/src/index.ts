@@ -1,5 +1,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+// @prisma/internals is CommonJS: it has no named ESM exports. Depending on the
+// bundler/runtime interop, getDMMF is exposed either directly on the namespace
+// or under `.default`. Resolve both shapes robustly.
+import * as prismaInternals from "@prisma/internals";
 import type {
   Cardinality,
   Column,
@@ -9,12 +13,8 @@ import type {
   Relation,
   SchemaParser,
   Table,
-} from "@alirezahamid/schemat-core";
-import { IR_VERSION, parseSchema } from "@alirezahamid/schemat-core";
-// @prisma/internals is CommonJS: it has no named ESM exports. Depending on the
-// bundler/runtime interop, getDMMF is exposed either directly on the namespace
-// or under `.default`. Resolve both shapes robustly.
-import * as prismaInternals from "@prisma/internals";
+} from "@schemat/core";
+import { IR_VERSION, parseSchema } from "@schemat/core";
 
 type GetDMMF = (opts: { datamodel: string }) => Promise<{
   datamodel: { models: unknown[]; enums: unknown[] };
@@ -24,9 +24,12 @@ const ns = prismaInternals as unknown as {
   getDMMF?: GetDMMF;
   default?: { getDMMF?: GetDMMF };
 };
-const getDMMF: GetDMMF = ns.getDMMF ?? ns.default?.getDMMF ?? (() => {
-  throw new Error("Could not resolve getDMMF from @prisma/internals");
-});
+const getDMMF: GetDMMF =
+  ns.getDMMF ??
+  ns.default?.getDMMF ??
+  (() => {
+    throw new Error("Could not resolve getDMMF from @prisma/internals");
+  });
 
 /** Minimal shape of the DMMF fields we consume, to avoid a hard type dep. */
 interface DmmfField {
@@ -87,9 +90,7 @@ function toColumn(field: DmmfField): Column | null {
 }
 
 function toTable(model: DmmfModel): Table {
-  const columns = model.fields
-    .map((f) => toColumn(f))
-    .filter((c): c is Column => c !== null);
+  const columns = model.fields.map((f) => toColumn(f)).filter((c): c is Column => c !== null);
   return { name: model.name, columns, comment: model.documentation ?? null };
 }
 
@@ -192,8 +193,7 @@ function refineCardinality(relations: Relation[], models: DmmfModel[]): Relation
   return relations.map((r): Relation => {
     if (r.cardinality === "many-to-many" || r.fromColumns.length === 0) return r;
     const singles = singleUnique.get(r.fromTable);
-    const allSinglesUnique =
-      singles !== undefined && r.fromColumns.every((c) => singles.has(c));
+    const allSinglesUnique = singles !== undefined && r.fromColumns.every((c) => singles.has(c));
     const matchesComposite = (compositeUnique.get(r.fromTable) ?? []).some((set) =>
       sameSet(set, r.fromColumns),
     );
@@ -203,9 +203,7 @@ function refineCardinality(relations: Relation[], models: DmmfModel[]): Relation
 }
 
 async function loadDatamodel(input: ParserInput): Promise<string> {
-  const file =
-    input.files?.[0] ??
-    path.join(input.projectPath, "prisma", "schema.prisma");
+  const file = input.files?.[0] ?? path.join(input.projectPath, "prisma", "schema.prisma");
   return readFile(file, "utf8");
 }
 

@@ -1,6 +1,6 @@
 {
-  "name": "@alirezahamid/schemat-parser-prisma",
-  "version": "0.0.0",
+  "name": "@schemat/parser-prisma",
+  "version": "0.1.0",
   "description": "Prisma schema parser for Schemat (DMMF -> IR).",
   "license": "MIT",
   "type": "module",
@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@alirezahamid/schemat-core": "workspace:*",
+    "@schemat/core": "workspace:*",
     "@prisma/internals": "6.1.0"
   },
   "devDependencies": {
@@ -27,5 +27,20 @@
     "tsup": "8.3.5",
     "typescript": "5.7.2",
     "vitest": "2.1.8"
+  },
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "homepage": "https://github.com/alirezahamid/schemat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alirezahamid/schemat.git",
+    "directory": "packages/parser-prisma"
+  },
+  "bugs": {
+    "url": "https://github.com/alirezahamid/schemat/issues"
+  },
+  "keywords": ["prisma", "erd", "schema", "dmmf", "parser"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

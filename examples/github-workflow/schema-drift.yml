@@ -2,7 +2,7 @@
 # schema, and comment the diff on the PR.
 #
 # Setup (once, in your repo):
-#   npx @alirezahamid/schemat snapshot     # writes .schemat/schema.snapshot.json
+#   npx @schemat/cli snapshot     # writes .schemat/schema.snapshot.json
 #   git add .schemat/schema.snapshot.json && git commit -m "chore: schema snapshot"
 #
 # Then this workflow keeps the snapshot honest on every PR.
@@ -27,9 +27,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Check schema drift
-        uses: alirezahamid/schemat@v1
+        uses: alirezahamid/schemat@v0
         with:
           root: "."
           # version: latest

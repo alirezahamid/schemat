@@ -6,12 +6,17 @@ import { runDiff } from "./commands/diff";
 import { type ExportFormat, runExport } from "./commands/export";
 import { runSnapshot } from "./commands/snapshot";
 
+// Injected at build time by tsup (see tsup.config.ts). Falls back to "0.0.0"
+// only if the CLI is run un-bundled (e.g. via tsx during development).
+declare const __CLI_VERSION__: string;
+const VERSION = typeof __CLI_VERSION__ === "string" ? __CLI_VERSION__ : "0.0.0";
+
 const program = new Command();
 
 program
   .name("schemat")
   .description("Git-native database schema documentation — live interactive ER diagrams.")
-  .version("0.0.0");
+  .version(VERSION);
 
 program
   .command("dev")
@@ -38,7 +43,9 @@ program
 
 program
   .command("snapshot")
-  .description("Write the current schema to .schemat/schema.snapshot.json (commit it for drift checks).")
+  .description(
+    "Write the current schema to .schemat/schema.snapshot.json (commit it for drift checks).",
+  )
   .option("-r, --root <dir>", "project root containing the schema", ".")
   .action(async (opts: { root: string }) => {
     await runSnapshot({ root: opts.root });

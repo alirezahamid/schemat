@@ -1,4 +1,4 @@
-import type { IRSchema } from "@alirezahamid/schemat-core";
+import type { IRSchema } from "@schemat/core";
 import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
 import {
   NODE_WIDTH,
@@ -58,9 +58,7 @@ export async function layoutSchema(
       id: n.id,
       width: NODE_WIDTH,
       height: nodeHeight(n.rows),
-      ...(fixed
-        ? { x: fixed.x, y: fixed.y, layoutOptions: { "elk.fixed": "true" } }
-        : {}),
+      ...(fixed ? { x: fixed.x, y: fixed.y, layoutOptions: { "elk.fixed": "true" } } : {}),
     };
   });
 

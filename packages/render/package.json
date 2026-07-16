@@ -1,6 +1,6 @@
 {
-  "name": "@alirezahamid/schemat-render",
-  "version": "0.0.0",
+  "name": "@schemat/render",
+  "version": "0.1.0",
   "description": "Headless renderers for Schemat: IR -> static SVG and Mermaid ER diagrams.",
   "license": "MIT",
   "type": "module",
@@ -23,7 +23,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@alirezahamid/schemat-core": "workspace:*",
+    "@schemat/core": "workspace:*",
     "elkjs": "0.9.3"
   },
   "devDependencies": {
@@ -31,5 +31,20 @@
     "tsup": "8.3.5",
     "typescript": "5.7.2",
     "vitest": "2.1.8"
+  },
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "homepage": "https://github.com/alirezahamid/schemat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alirezahamid/schemat.git",
+    "directory": "packages/render"
+  },
+  "bugs": {
+    "url": "https://github.com/alirezahamid/schemat/issues"
+  },
+  "keywords": ["erd", "svg", "mermaid", "elkjs", "diagram", "render"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

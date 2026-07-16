@@ -1,4 +1,4 @@
-import type { IRSchema } from "@alirezahamid/schemat-core";
+import type { IRSchema } from "@schemat/core";
 
 export type SchemaMessage =
   | { type: "schema"; schema: IRSchema }

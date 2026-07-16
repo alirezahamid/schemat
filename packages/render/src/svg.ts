@@ -1,11 +1,5 @@
-import type { Column, IRSchema, Relation } from "@alirezahamid/schemat-core";
-import {
-  HEADER_HEIGHT,
-  NODE_WIDTH,
-  type PlacedNode,
-  type Placement,
-  ROW_HEIGHT,
-} from "./geometry";
+import type { Column, IRSchema, Relation } from "@schemat/core";
+import { HEADER_HEIGHT, NODE_WIDTH, type PlacedNode, type Placement, ROW_HEIGHT } from "./geometry";
 
 /** Theme tokens — kept aligned with the web canvas dark theme. */
 const THEME = {
@@ -31,8 +25,7 @@ const THEME = {
 };
 
 const PADDING = 40;
-const FONT =
-  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const MONO = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
 
 /** Escape text for safe inclusion in SVG/XML. */
@@ -52,13 +45,7 @@ function rowCenterY(rowIndex: number): number {
 
 function badge(x: number, y: number, text: string, fill: string): string {
   const w = 8 + text.length * 7;
-  return (
-    `<g transform="translate(${x - w},${y - 8})">` +
-    `<rect width="${w}" height="16" rx="3" fill="${fill}"/>` +
-    `<text x="${w / 2}" y="12" text-anchor="middle" font-family="${MONO}" ` +
-    `font-size="10" font-weight="700" fill="${THEME.badgeText}">${esc(text)}</text>` +
-    "</g>"
-  );
+  return `<g transform="translate(${x - w},${y - 8})"><rect width="${w}" height="16" rx="3" fill="${fill}"/><text x="${w / 2}" y="12" text-anchor="middle" font-family="${MONO}" font-size="10" font-weight="700" fill="${THEME.badgeText}">${esc(text)}</text></g>`;
 }
 
 function columnRow(col: Column, node: PlacedNode, index: number): string {
@@ -84,26 +71,13 @@ function columnRow(col: Column, node: PlacedNode, index: number): string {
       ? `<line x1="${node.x}" y1="${y}" x2="${node.x + node.width}" y2="${y}" stroke="${THEME.divider}" stroke-width="1"/>`
       : "";
 
-  return (
-    divider +
-    `<text x="${nameX}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${THEME.rowText}">${esc(label)}</text>` +
-    `<text x="${bx - 8}" y="${cy + 4}" text-anchor="end" font-family="${MONO}" font-size="11" fill="${THEME.typeText}">${esc(col.type)}</text>` +
-    badges.join("")
-  );
+  return `${divider}<text x="${nameX}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${THEME.rowText}">${esc(label)}</text><text x="${bx - 8}" y="${cy + 4}" text-anchor="end" font-family="${MONO}" font-size="11" fill="${THEME.typeText}">${esc(col.type)}</text>${badges.join("")}`;
 }
 
 function tableNode(node: PlacedNode, columns: Column[]): string {
   const rows = columns.map((c, i) => columnRow(c, node, i)).join("");
   const name = node.id;
-  return (
-    `<g>` +
-    `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" ` +
-    `fill="${THEME.nodeBg}" stroke="${THEME.nodeBorder}" stroke-width="1"/>` +
-    `<path d="M${node.x},${node.y + HEADER_HEIGHT} v-${HEADER_HEIGHT - 8} a8,8 0 0 1 8,-8 h${node.width - 16} a8,8 0 0 1 8,8 v${HEADER_HEIGHT - 8} z" fill="${THEME.headerBg}"/>` +
-    `<text x="${node.x + 12}" y="${node.y + 25}" font-family="${FONT}" font-size="14" font-weight="700" fill="${THEME.headerText}">${esc(name)}</text>` +
-    rows +
-    `</g>`
-  );
+  return `<g><rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" fill="${THEME.nodeBg}" stroke="${THEME.nodeBorder}" stroke-width="1"/><path d="M${node.x},${node.y + HEADER_HEIGHT} v-${HEADER_HEIGHT - 8} a8,8 0 0 1 8,-8 h${node.width - 16} a8,8 0 0 1 8,8 v${HEADER_HEIGHT - 8} z" fill="${THEME.headerBg}"/><text x="${node.x + 12}" y="${node.y + 25}" font-family="${FONT}" font-size="14" font-weight="700" fill="${THEME.headerText}">${esc(name)}</text>${rows}</g>`;
 }
 
 function enumNode(node: PlacedNode, values: string[]): string {
@@ -115,21 +89,10 @@ function enumNode(node: PlacedNode, values: string[]): string {
         i > 0
           ? `<line x1="${node.x}" y1="${node.y + HEADER_HEIGHT + i * ROW_HEIGHT}" x2="${node.x + node.width}" y2="${node.y + HEADER_HEIGHT + i * ROW_HEIGHT}" stroke="${THEME.enumBorder}" stroke-opacity="0.4" stroke-width="1"/>`
           : "";
-      return (
-        divider +
-        `<text x="${node.x + 12}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${THEME.rowText}">${esc(v)}</text>`
-      );
+      return `${divider}<text x="${node.x + 12}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${THEME.rowText}">${esc(v)}</text>`;
     })
     .join("");
-  return (
-    `<g>` +
-    `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" ` +
-    `fill="${THEME.enumBg}" stroke="${THEME.enumBorder}" stroke-width="1"/>` +
-    `<path d="M${node.x},${node.y + HEADER_HEIGHT} v-${HEADER_HEIGHT - 8} a8,8 0 0 1 8,-8 h${node.width - 16} a8,8 0 0 1 8,8 v${HEADER_HEIGHT - 8} z" fill="${THEME.enumHeader}"/>` +
-    `<text x="${node.x + 12}" y="${node.y + 25}" font-family="${FONT}" font-size="13" font-weight="700" fill="${THEME.headerText}">${esc(name)} <tspan fill="${THEME.typeText}" font-size="10">enum</tspan></text>` +
-    rows +
-    `</g>`
-  );
+  return `<g><rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" fill="${THEME.enumBg}" stroke="${THEME.enumBorder}" stroke-width="1"/><path d="M${node.x},${node.y + HEADER_HEIGHT} v-${HEADER_HEIGHT - 8} a8,8 0 0 1 8,-8 h${node.width - 16} a8,8 0 0 1 8,8 v${HEADER_HEIGHT - 8} z" fill="${THEME.enumHeader}"/><text x="${node.x + 12}" y="${node.y + 25}" font-family="${FONT}" font-size="13" font-weight="700" fill="${THEME.headerText}">${esc(name)} <tspan fill="${THEME.typeText}" font-size="10">enum</tspan></text>${rows}</g>`;
 }
 
 /** Anchor point for a relation end on a table, at the given column's row. */
@@ -142,8 +105,7 @@ function anchor(
   const x = side === "right" ? node.x + node.width : node.x;
   const idx = column ? columns.findIndex((c) => c.name === column) : -1;
   // Fall back to node vertical center when the column isn't found (m2m).
-  const y =
-    idx >= 0 ? node.y + rowCenterY(idx) : node.y + node.height / 2;
+  const y = idx >= 0 ? node.y + rowCenterY(idx) : node.y + node.height / 2;
   return { x, y };
 }
 
@@ -171,23 +133,13 @@ function edgePath(
   const d = `M${a.x},${a.y} C${c1x},${a.y} ${c2x},${b.y} ${b.x},${b.y}`;
 
   const label =
-    rel.cardinality === "many-to-many"
-      ? "N:N"
-      : rel.cardinality === "one-to-one"
-        ? "1:1"
-        : "1:N";
+    rel.cardinality === "many-to-many" ? "N:N" : rel.cardinality === "one-to-one" ? "1:1" : "1:N";
   const dashed = rel.cardinality === "many-to-many";
   const mx = (a.x + b.x) / 2;
   const my = (a.y + b.y) / 2;
   const lw = 8 + label.length * 7;
 
-  return (
-    `<path d="${d}" fill="none" stroke="${THEME.edge}" stroke-width="1.5"${dashed ? ' stroke-dasharray="5 4"' : ""}/>` +
-    `<g transform="translate(${mx - lw / 2},${my - 9})">` +
-    `<rect width="${lw}" height="18" rx="3" fill="${THEME.edgeLabelBg}" stroke="${THEME.nodeBorder}"/>` +
-    `<text x="${lw / 2}" y="13" text-anchor="middle" font-family="${MONO}" font-size="10" fill="${THEME.edgeLabelText}">${esc(label)}</text>` +
-    `</g>`
-  );
+  return `<path d="${d}" fill="none" stroke="${THEME.edge}" stroke-width="1.5"${dashed ? ' stroke-dasharray="5 4"' : ""}/><g transform="translate(${mx - lw / 2},${my - 9})"><rect width="${lw}" height="18" rx="3" fill="${THEME.edgeLabelBg}" stroke="${THEME.nodeBorder}"/><text x="${lw / 2}" y="13" text-anchor="middle" font-family="${MONO}" font-size="10" fill="${THEME.edgeLabelText}">${esc(label)}</text></g>`;
 }
 
 /**
@@ -245,15 +197,5 @@ export function renderSvgFromPlacement(schema: IRSchema, placement: Placement): 
     if (node) bodies.push(enumNode(node, e.values));
   }
 
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
-    `viewBox="0 0 ${width} ${height}" font-family="${FONT}">` +
-    `<rect width="${width}" height="${height}" fill="${THEME.bg}"/>` +
-    `<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">` +
-    `<circle cx="1" cy="1" r="1" fill="${THEME.grid}"/></pattern></defs>` +
-    `<rect width="${width}" height="${height}" fill="url(#grid)"/>` +
-    edges +
-    bodies.join("") +
-    `</svg>\n`
-  );
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}"><rect width="${width}" height="${height}" fill="${THEME.bg}"/><defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="${THEME.grid}"/></pattern></defs><rect width="${width}" height="${height}" fill="url(#grid)"/>${edges}${bodies.join("")}</svg>\n`;
 }
