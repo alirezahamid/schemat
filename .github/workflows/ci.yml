@@ -29,11 +29,13 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Build first so each package's dist/*.d.ts exists — typecheck and tests
+      # resolve cross-package types (e.g. @schemat/core) from built declarations.
+      - name: Build
+        run: pnpm build
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Test
         run: pnpm test
-
-      - name: Build
-        run: pnpm build
