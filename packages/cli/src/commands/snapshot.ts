@@ -1,5 +1,5 @@
 import path from "node:path";
-import { SUPPORTED_SOURCES, resolveSchema } from "../schema-source";
+import { noSchemaMessage, resolveSchema } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
 
 export interface SnapshotOptions {
@@ -16,9 +16,7 @@ export async function runSnapshot(options: SnapshotOptions): Promise<void> {
 
   const schema = await resolveSchema(projectPath);
   if (!schema) {
-    console.error(
-      `No schema found under ${projectPath}.\nExpected ${SUPPORTED_SOURCES}, or pass --root <dir>.`,
-    );
+    console.error(await noSchemaMessage(projectPath));
     process.exitCode = 1;
     return;
   }

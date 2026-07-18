@@ -1,11 +1,26 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { IRSchema } from "@schemat/core";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { prismaParser } from "../src/index";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const exampleProject = path.resolve(here, "../../../examples/blog");
+
+// Track temp dirs to clean up after the suite.
+const tempDirs: string[] = [];
+async function makeProject(files: Record<string, string>): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), "schemat-prisma-"));
+  tempDirs.push(dir);
+  for (const [rel, content] of Object.entries(files)) {
+    const full = path.join(dir, rel);
+    await mkdir(path.dirname(full), { recursive: true });
+    await writeFile(full, content, "utf8");
+  }
+  return dir;
+}
 
 describe("prisma parser", () => {
   it("detects a prisma project", async () => {
@@ -64,5 +79,119 @@ describe("prisma parser", () => {
     expect(m2m).toHaveLength(1);
     const names = [m2m[0]?.fromTable, m2m[0]?.toTable].sort();
     expect(names).toEqual(["Post", "Tag"]);
+  });
+});
+
+// Real-world robustness: schemas that fail `prisma generate`-style validation
+// but that Schemat must still render, because it only reads structure and never
+// connects to a database. Each case is a shape found in real public repos.
+describe("prisma parser — real-world schema shapes", () => {
+  afterAll(async () => {
+    await Promise.all(tempDirs.map((d) => rm(d, { recursive: true, force: true })));
+  });
+
+  it("parses a datasource with NO url (formbricks / umami shape)", async () => {
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+generator client {
+  provider        = "prisma-client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+datasource db {
+  provider   = "postgresql"
+  extensions = [pgvector(map: "vector")]
+}
+model User {
+  id    Int    @id @default(autoincrement())
+  email String @unique
+}
+`,
+    });
+    const ir = await prismaParser.parse({ projectPath: dir });
+    expect(() => IRSchema.parse(ir)).not.toThrow();
+    expect(ir.tables.map((t) => t.name)).toEqual(["User"]);
+  });
+
+  it("parses a datasource with only directUrl, no url", async () => {
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+datasource db {
+  provider  = "postgresql"
+  directUrl = env("DIRECT_URL")
+}
+model Account {
+  id Int @id @default(autoincrement())
+}
+`,
+    });
+    const ir = await prismaParser.parse({ projectPath: dir });
+    expect(ir.tables.map((t) => t.name)).toEqual(["Account"]);
+  });
+
+  it("detects and parses a multi-file prisma/schema/ folder (prismaSchemaFolder)", async () => {
+    const dir = await makeProject({
+      "prisma/schema/base.prisma": `
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+generator client {
+  provider = "prisma-client-js"
+}
+`,
+      "prisma/schema/user.prisma": `
+model User {
+  id    Int    @id @default(autoincrement())
+  posts Post[]
+}
+`,
+      "prisma/schema/post.prisma": `
+model Post {
+  id       Int  @id @default(autoincrement())
+  author   User @relation(fields: [authorId], references: [id])
+  authorId Int
+}
+`,
+    });
+    expect(await prismaParser.detect(dir)).toBe(true);
+    const ir = await prismaParser.parse({ projectPath: dir });
+    expect(ir.tables.map((t) => t.name).sort()).toEqual(["Post", "User"]);
+    // Relation defined across two files resolves correctly.
+    const rel = ir.relations.find((r) => r.fromTable === "Post" && r.toTable === "User");
+    expect(rel).toMatchObject({ fromColumns: ["authorId"], toColumns: ["id"] });
+  });
+
+  it("does not clobber an existing url when injecting the placeholder", async () => {
+    const realUrl = 'url      = env("DATABASE_URL")';
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+datasource db {
+  provider = "postgresql"
+  ${realUrl}
+}
+model Widget {
+  id Int @id @default(autoincrement())
+}
+`,
+    });
+    const ir = await prismaParser.parse({ projectPath: dir });
+    expect(ir.tables.map((t) => t.name)).toEqual(["Widget"]);
+  });
+
+  it("injects url when the only url= line is commented out", async () => {
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+datasource db {
+  provider = "postgresql"
+  // url = env("DATABASE_URL")
+}
+model Gadget {
+  id Int @id @default(autoincrement())
+}
+`,
+    });
+    // Without comment-stripping this would fail getDMMF with "url is missing".
+    const ir = await prismaParser.parse({ projectPath: dir });
+    expect(ir.tables.map((t) => t.name)).toEqual(["Gadget"]);
   });
 });

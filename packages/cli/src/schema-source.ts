@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { IRSchema, SchemaParser } from "@schemat/core";
 import { prismaParser } from "@schemat/parser-prisma";
@@ -61,4 +61,61 @@ export async function resolveSchemaFrom(target: string): Promise<IRSchema | null
 }
 
 /** Human list of the sources Schemat can detect, for error messages. */
-export const SUPPORTED_SOURCES = "Prisma (<root>/prisma/schema.prisma) or SQL (<root>/schema.sql)";
+export const SUPPORTED_SOURCES =
+  "Prisma (<root>/prisma/schema.prisma, or a <root>/prisma/schema/ folder) or SQL (<root>/schema.sql)";
+
+/**
+ * Scan a monorepo for schemas one level down under common workspace dirs
+ * (apps/, packages/, services/, libs/). Returns the sub-paths (relative to
+ * `root`) that contain a detectable schema, so the CLI can point the user at
+ * the right `--root` instead of just saying "nothing found".
+ */
+export async function findSchemasInSubdirs(root: string): Promise<string[]> {
+  const workspaceDirs = ["apps", "packages", "services", "libs"];
+  const found: string[] = [];
+
+  for (const ws of workspaceDirs) {
+    const wsPath = path.join(root, ws);
+    let entries: string[];
+    try {
+      const dirents = await readdir(wsPath, { withFileTypes: true });
+      entries = dirents.filter((d) => d.isDirectory()).map((d) => d.name);
+    } catch {
+      continue; // workspace dir doesn't exist
+    }
+    for (const entry of entries) {
+      const candidate = path.join(wsPath, entry);
+      if (await detectParser(candidate)) {
+        found.push(path.join(ws, entry));
+      }
+    }
+  }
+  return found.sort();
+}
+
+/**
+ * Build the "no schema found" error message. When the given root looks like a
+ * monorepo (schemas live under apps/*, packages/*, …), list the discovered
+ * service paths so the user knows exactly what to pass to `--root`.
+ */
+export async function noSchemaMessage(projectPath: string): Promise<string> {
+  const base =
+    `No schema found under ${projectPath}.\n` +
+    `Expected ${SUPPORTED_SOURCES}, or pass --root <dir>.`;
+  const subdirs = await findSchemasInSubdirs(projectPath);
+  if (subdirs.length === 0) return base;
+
+  // Suggest paths relative to the user's cwd, not the resolved projectPath, so
+  // the printed `--root` works verbatim even when they ran `schemat --root repo`.
+  const list = subdirs
+    .map((d) => {
+      const rel = path.relative(process.cwd(), path.join(projectPath, d)) || d;
+      return `  schemat --root ${rel}`;
+    })
+    .join("\n");
+  return (
+    `${base}\n\n` +
+    `This looks like a monorepo. Found schemas in ${subdirs.length} sub-project(s) — ` +
+    `point --root at one:\n${list}`
+  );
+}
