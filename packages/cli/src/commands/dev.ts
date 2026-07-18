@@ -1,5 +1,5 @@
 import path from "node:path";
-import { SUPPORTED_SOURCES, detectParser } from "../schema-source";
+import { detectParser, noSchemaMessage } from "../schema-source";
 import { startServer } from "../server";
 import { watchSchema } from "../watch";
 
@@ -17,9 +17,7 @@ export async function runDev(options: DevOptions): Promise<void> {
 
   const parser = await detectParser(projectPath);
   if (!parser) {
-    console.error(
-      `No schema found under ${projectPath}.\nExpected ${SUPPORTED_SOURCES}, or pass --root <dir>.`,
-    );
+    console.error(await noSchemaMessage(projectPath));
     process.exitCode = 1;
     return;
   }

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { diff } from "@schemat/core";
 import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
-import { SUPPORTED_SOURCES, resolveSchema } from "../schema-source";
+import { noSchemaMessage, resolveSchema } from "../schema-source";
 import { loadSnapshot, snapshotPath } from "../snapshot";
 
 export interface CheckOptions {
@@ -20,9 +20,7 @@ export async function runCheck(options: CheckOptions): Promise<void> {
 
   const current = await resolveSchema(projectPath);
   if (!current) {
-    console.error(
-      `No schema found under ${projectPath}.\nExpected ${SUPPORTED_SOURCES}, or pass --root <dir>.`,
-    );
+    console.error(await noSchemaMessage(projectPath));
     process.exitCode = 1;
     return;
   }

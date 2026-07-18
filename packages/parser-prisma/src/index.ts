@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 // @prisma/internals is CommonJS: it has no named ESM exports. Depending on the
 // bundler/runtime interop, getDMMF is exposed either directly on the namespace
@@ -202,9 +202,63 @@ function refineCardinality(relations: Relation[], models: DmmfModel[]): Relation
   });
 }
 
+/**
+ * Prisma's `getDMMF` runs full schema validation, which requires every
+ * `datasource` block to have a `url`. Schemat never connects to the database —
+ * it only reads the model structure — but real schemas often omit a static
+ * `url` (it's supplied at runtime, via a newer generator, or the env var simply
+ * isn't set at doc-generation time). Inject a harmless placeholder `url` into
+ * any datasource block that lacks one so validation passes. This value is never
+ * used for anything.
+ */
+function ensureDatasourceUrl(schema: string): string {
+  return schema.replace(/datasource\s+\w+\s*\{([^}]*)\}/g, (block, body: string) => {
+    // Already has a url (or directUrl-only won't satisfy Prisma, so key on url).
+    if (/\burl\s*=/.test(body)) return block;
+    // Insert a placeholder url right after the opening brace.
+    return block.replace(/\{/, '{\n  url = "postgresql://schemat:schemat@localhost:5432/schemat"');
+  });
+}
+
+/**
+ * Read the project's Prisma schema. Supports both layouts:
+ *  - single file: `<root>/prisma/schema.prisma`
+ *  - multi-file folder (`prismaSchemaFolder`, GA since Prisma 6):
+ *    `<root>/prisma/schema/*.prisma` — all files are concatenated.
+ * An explicit `files` override (used by `schemat diff <file>`) wins.
+ */
 async function loadDatamodel(input: ParserInput): Promise<string> {
-  const file = input.files?.[0] ?? path.join(input.projectPath, "prisma", "schema.prisma");
-  return readFile(file, "utf8");
+  if (input.files?.length) {
+    const parts = await Promise.all(input.files.map((f) => readFile(f, "utf8")));
+    return ensureDatasourceUrl(parts.join("\n\n"));
+  }
+
+  const prismaDir = path.join(input.projectPath, "prisma");
+  const singleFile = path.join(prismaDir, "schema.prisma");
+  const schemaFolder = path.join(prismaDir, "schema");
+
+  // Prefer the multi-file folder when present (a repo can technically have both;
+  // the folder is the modern layout and, when it exists, is the source of truth).
+  const folderFiles = await readPrismaFolder(schemaFolder);
+  if (folderFiles.length > 0) {
+    const parts = await Promise.all(folderFiles.map((f) => readFile(f, "utf8")));
+    return ensureDatasourceUrl(parts.join("\n\n"));
+  }
+
+  return ensureDatasourceUrl(await readFile(singleFile, "utf8"));
+}
+
+/** List `*.prisma` files in a schema folder (sorted for deterministic output), or [] if absent. */
+async function readPrismaFolder(dir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isFile() && e.name.endsWith(".prisma"))
+      .map((e) => path.join(dir, e.name))
+      .sort();
+  } catch {
+    return [];
+  }
 }
 
 /** Parse a Prisma schema into the canonical Schemat IR. */
@@ -226,13 +280,17 @@ async function parse(input: ParserInput): Promise<IRSchema> {
 }
 
 async function detect(projectPath: string): Promise<boolean> {
-  const candidate = path.join(projectPath, "prisma", "schema.prisma");
+  // Single-file layout: <root>/prisma/schema.prisma
+  const singleFile = path.join(projectPath, "prisma", "schema.prisma");
   try {
-    await readFile(candidate, "utf8");
+    await readFile(singleFile, "utf8");
     return true;
   } catch {
-    return false;
+    // fall through to the multi-file folder check
   }
+  // Multi-file layout: <root>/prisma/schema/*.prisma
+  const folderFiles = await readPrismaFolder(path.join(projectPath, "prisma", "schema"));
+  return folderFiles.length > 0;
 }
 
 export const prismaParser: SchemaParser = {
