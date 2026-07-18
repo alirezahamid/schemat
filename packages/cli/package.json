@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@schemat/core": "workspace:*",
+    "@schemat/parser-dbml": "workspace:*",
     "@schemat/parser-prisma": "workspace:*",
     "@schemat/parser-sql": "workspace:*",
     "@schemat/render": "workspace:*",
