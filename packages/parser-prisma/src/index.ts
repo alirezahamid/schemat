@@ -213,8 +213,10 @@ function refineCardinality(relations: Relation[], models: DmmfModel[]): Relation
  */
 function ensureDatasourceUrl(schema: string): string {
   return schema.replace(/datasource\s+\w+\s*\{([^}]*)\}/g, (block, body: string) => {
-    // Already has a url (or directUrl-only won't satisfy Prisma, so key on url).
-    if (/\burl\s*=/.test(body)) return block;
+    // Test against a comment-stripped copy of the body so a commented-out
+    // `// url = ...` doesn't fool us into thinking a real url is present.
+    const uncommented = body.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    if (/\burl\s*=/.test(uncommented)) return block;
     // Insert a placeholder url right after the opening brace.
     return block.replace(/\{/, '{\n  url = "postgresql://schemat:schemat@localhost:5432/schemat"');
   });

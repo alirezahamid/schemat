@@ -177,4 +177,21 @@ model Widget {
     const ir = await prismaParser.parse({ projectPath: dir });
     expect(ir.tables.map((t) => t.name)).toEqual(["Widget"]);
   });
+
+  it("injects url when the only url= line is commented out", async () => {
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+datasource db {
+  provider = "postgresql"
+  // url = env("DATABASE_URL")
+}
+model Gadget {
+  id Int @id @default(autoincrement())
+}
+`,
+    });
+    // Without comment-stripping this would fail getDMMF with "url is missing".
+    const ir = await prismaParser.parse({ projectPath: dir });
+    expect(ir.tables.map((t) => t.name)).toEqual(["Gadget"]);
+  });
 });

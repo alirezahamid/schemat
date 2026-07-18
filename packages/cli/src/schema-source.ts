@@ -105,7 +105,14 @@ export async function noSchemaMessage(projectPath: string): Promise<string> {
   const subdirs = await findSchemasInSubdirs(projectPath);
   if (subdirs.length === 0) return base;
 
-  const list = subdirs.map((d) => `  schemat --root ${d}`).join("\n");
+  // Suggest paths relative to the user's cwd, not the resolved projectPath, so
+  // the printed `--root` works verbatim even when they ran `schemat --root repo`.
+  const list = subdirs
+    .map((d) => {
+      const rel = path.relative(process.cwd(), path.join(projectPath, d)) || d;
+      return `  schemat --root ${rel}`;
+    })
+    .join("\n");
   return (
     `${base}\n\n` +
     `This looks like a monorepo. Found schemas in ${subdirs.length} sub-project(s) — ` +
