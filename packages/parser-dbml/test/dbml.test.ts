@@ -134,4 +134,85 @@ Table profiles {
     const rel = ir.relations.find((r) => r.fromTable === "profiles" && r.toTable === "users");
     expect(rel?.cardinality).toBe("one-to-one");
   });
+
+  it("maps an explicit many-to-many relation with empty FK columns", async () => {
+    const dir = await makeProject({
+      "schema.dbml": `
+Table a {
+  id integer [pk]
+}
+Table b {
+  id integer [pk]
+}
+Ref: a.id <> b.id
+`,
+    });
+    const ir = await dbmlParser.parse({ projectPath: dir });
+    expect(ir.relations).toHaveLength(1);
+    expect(ir.relations[0]).toMatchObject({
+      cardinality: "many-to-many",
+      fromColumns: [],
+      toColumns: [],
+    });
+  });
+
+  it("returns an empty schema for an empty file (no crash)", async () => {
+    const dir = await makeProject({ "schema.dbml": "" });
+    const ir = await dbmlParser.parse({ projectPath: dir });
+    expect(ir.tables).toHaveLength(0);
+    expect(ir.relations).toHaveLength(0);
+  });
+
+  it("throws a readable error on malformed DBML (not [object Object])", async () => {
+    const dir = await makeProject({ "schema.dbml": "Table {{{ broken" });
+    await expect(dbmlParser.parse({ projectPath: dir })).rejects.toThrow(/Failed to parse DBML/);
+  });
+
+  it("orients a 1:1 relation FK-owner (non-PK) side correctly", async () => {
+    const dir = await makeProject({
+      "schema.dbml": `
+Table users {
+  id integer [pk]
+}
+Table profiles {
+  id integer [pk]
+  user_id integer [unique, ref: - users.id]
+}
+`,
+    });
+    const ir = await dbmlParser.parse({ projectPath: dir });
+    const rel = ir.relations[0];
+    // FK owner is profiles.user_id (the unique, non-PK column), not users.id.
+    expect(rel).toMatchObject({
+      fromTable: "profiles",
+      fromColumns: ["user_id"],
+      toTable: "users",
+      toColumns: ["id"],
+      cardinality: "one-to-one",
+    });
+  });
+
+  it("schema-qualifies colliding table names across schemas", async () => {
+    const dir = await makeProject({
+      "schema.dbml": `
+Table auth.users {
+  id integer [pk]
+}
+Table public.users {
+  id integer [pk]
+  auth_id integer [ref: > auth.users.id]
+}
+`,
+    });
+    const ir = await dbmlParser.parse({ projectPath: dir });
+    // The auth-schema table is qualified; the public one stays bare.
+    expect(ir.tables.map((t) => t.name).sort()).toEqual(["auth.users", "users"]);
+    const rel = ir.relations.find((r) => r.toTable === "auth.users");
+    expect(rel).toMatchObject({
+      fromTable: "users",
+      fromColumns: ["auth_id"],
+      toTable: "auth.users",
+      cardinality: "one-to-many",
+    });
+  });
 });
