@@ -158,6 +158,28 @@ importers:
         specifier: 2.1.8
         version: 2.1.8(@types/node@20.17.10)
 
+  packages/parser-mongoose:
+    dependencies:
+      '@schemat/core':
+        specifier: workspace:*
+        version: link:../core
+      ts-morph:
+        specifier: 23.0.0
+        version: 23.0.0
+    devDependencies:
+      '@types/node':
+        specifier: 20.17.10
+        version: 20.17.10
+      tsup:
+        specifier: 8.3.5
+        version: 8.3.5(postcss@8.5.16)(tsx@4.19.2)(typescript@5.7.2)
+      typescript:
+        specifier: 5.7.2
+        version: 5.7.2
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@20.17.10)
+
   packages/parser-prisma:
     dependencies:
       '@prisma/internals':
