@@ -56,8 +56,16 @@ Detects a TypeORM project when any of these hold:
 
 - **Synthetic FK columns.** TypeORM doesn't always name the join column in the
   decorator, so a relation's `fromColumns` uses the `<property>Id` convention and
-  `toColumns` defaults to `['id']`. Explicit `@JoinColumn({ name })` overrides
-  aren't read yet.
+  `toColumns` defaults to `['id']`. Explicit `@JoinColumn({ name,
+  referencedColumnName })`, non-`id` primary keys, and composite keys aren't read
+  yet.
+- **Unresolved relation targets are skipped.** A relation to a class that isn't a
+  parsed `@Entity` (e.g. in a file outside the parsed set) is dropped rather than
+  emitted as an edge to a nonexistent table. Pass all entity files (the default
+  walk includes them) to capture every relation.
+- **Enums referenced across files.** `@Column({ type: 'enum', enum: SomeEnum })`
+  resolves `SomeEnum`'s values only when its `enum` declaration is among the
+  parsed files; otherwise the enum is emitted with its name and empty values.
 - Column type falls back to the property's TS type when no `type` option is
   given (`number`, `string`, `boolean`, `Date`→`timestamp`).
 

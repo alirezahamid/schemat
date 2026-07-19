@@ -113,15 +113,27 @@ async function detect(projectPath: string): Promise<boolean> {
     }
   }
 
-  // 2. any **/*.entity.ts file, OR 3. any .ts containing `@Entity(`
+  // 2. Decorator-based detection. Require a `typeorm` import signal in the same
+  //    file as an @Entity( decorator, so we don't false-positive MikroORM (which
+  //    also uses @Entity but imports from @mikro-orm/core).
   const tsFiles = walkTsFiles(projectPath);
   for (const f of tsFiles) {
-    if (f.endsWith(".entity.ts")) return true;
-  }
-  for (const f of tsFiles) {
-    if (fileHasEntityDecorator(f)) return true;
+    if (fileIsTypeormEntity(f)) return true;
   }
   return false;
+}
+
+/** True when a file has an @Entity decorator AND imports from `typeorm`. */
+function fileIsTypeormEntity(path: string): boolean {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return false;
+  }
+  if (!/@Entity\s*\(/.test(text)) return false;
+  // Must import from typeorm (not @mikro-orm/core) to be a TypeORM entity.
+  return /from\s+['"]typeorm['"]/.test(text);
 }
 
 // ---------------------------------------------------------------------------
@@ -524,8 +536,13 @@ async function parse(input: ParserInput): Promise<IRSchema> {
           const extracted = extractRelation(prop, relDec, tableName);
           if (extracted) {
             // Resolve the relation's target class name to its real table name.
+            // Skip relations whose target isn't a known entity table — leaving a
+            // raw class name would produce a dangling edge to a nonexistent
+            // table (target in an unparsed file or a non-@Entity class).
             const rel = extracted.relation;
-            rel.toTable = classToTable.get(rel.toTable) ?? rel.toTable;
+            const resolved = classToTable.get(rel.toTable);
+            if (!resolved) continue;
+            rel.toTable = resolved;
             relations.push(rel);
           }
         }

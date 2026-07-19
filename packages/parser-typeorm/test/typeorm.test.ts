@@ -136,12 +136,28 @@ describe("detect", () => {
     expect(await typeormParser.detect(root)).toBe(true);
   });
 
-  it("detects via *.entity.ts even without package.json dep", async () => {
+  it("detects via a *.entity.ts file that imports typeorm", async () => {
     const d = mkdtempSync(join(tmpdir(), "typeorm-entityonly-"));
     mkdirSync(join(d, "src"), { recursive: true });
-    writeFileSync(join(d, "src", "foo.entity.ts"), "@Entity() class Foo {}");
+    writeFileSync(
+      join(d, "src", "foo.entity.ts"),
+      'import { Entity } from "typeorm";\n@Entity() class Foo {}',
+    );
     try {
       expect(await typeormParser.detect(d)).toBe(true);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("does NOT detect a MikroORM entity (uses @Entity but imports @mikro-orm/core)", async () => {
+    const d = mkdtempSync(join(tmpdir(), "mikro-"));
+    writeFileSync(
+      join(d, "user.entity.ts"),
+      'import { Entity, PrimaryKey } from "@mikro-orm/core";\n@Entity()\nclass User { @PrimaryKey() id!: number; }',
+    );
+    try {
+      expect(await typeormParser.detect(d)).toBe(false);
     } finally {
       rmSync(d, { recursive: true, force: true });
     }
