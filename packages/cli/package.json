@@ -19,6 +19,7 @@
     "@schemat/parser-drizzle": "workspace:*",
     "@schemat/parser-prisma": "workspace:*",
     "@schemat/parser-sql": "workspace:*",
+    "@schemat/parser-typeorm": "workspace:*",
     "@schemat/render": "workspace:*",
     "@schemat/web": "workspace:*",
     "chokidar": "4.0.3",

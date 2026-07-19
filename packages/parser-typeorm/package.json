@@ -1,0 +1,46 @@
+{
+  "name": "@schemat/parser-typeorm",
+  "version": "0.1.0",
+  "description": "TypeORM parser for Schemat (entity decorators -> IR, static AST).",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@schemat/core": "workspace:*",
+    "ts-morph": "23.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.10",
+    "tsup": "8.3.5",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  },
+  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "homepage": "https://github.com/alirezahamid/schemat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alirezahamid/schemat.git",
+    "directory": "packages/parser-typeorm"
+  },
+  "bugs": {
+    "url": "https://github.com/alirezahamid/schemat/issues"
+  },
+  "keywords": ["typeorm", "erd", "schema", "entity", "parser"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
