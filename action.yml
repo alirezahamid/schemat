@@ -53,7 +53,7 @@ runs:
 
     - name: Comment on PR
       if: ${{ inputs.comment == 'true' && github.event_name == 'pull_request' }}
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       env:
         # Pass the (untrusted) body as data via the environment — NEVER
         # interpolate it into the script source, or a schema name containing
