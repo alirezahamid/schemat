@@ -25,7 +25,7 @@
     "@schemat/render": "workspace:*",
     "@schemat/web": "workspace:*",
     "chokidar": "4.0.3",
-    "commander": "12.1.0",
+    "commander": "15.0.0",
     "ws": "8.18.0"
   },
   "devDependencies": {
