@@ -265,9 +265,12 @@ function extractTable(varName: string, call: CallExpression): RawTable | null {
       if (!init) continue;
 
       const chain = unwindChain(init);
-      // Skip entries that are not column builders (e.g. table-level indexes
-      // sometimes authored inside the columns object are still call chains,
-      // but a null builder means we could not resolve one).
+      // Only treat entries that resolve to a real column-builder call as
+      // columns. A null builder means the initializer wasn't a builder chain
+      // (e.g. a table-level index/constraint authored in the columns object, or
+      // something we don't model) — skip it rather than emit an `unknown` column.
+      if (chain.builder === null) continue;
+
       const { column, ref } = extractColumn(propKey, chain);
       columns.push(column);
       propToDbCol.set(propKey, column.name);
@@ -318,10 +321,12 @@ function resolveRelations(rawTables: RawTable[]): Relation[] {
   for (const t of rawTables) {
     for (const ref of t.refs) {
       const target = byVar.get(ref.toVarName);
-      const toTable = target ? target.tableName : ref.toVarName;
-      const toColumn = target
-        ? (target.propToDbCol.get(ref.toPropKey) ?? ref.toPropKey)
-        : ref.toPropKey;
+      // Skip refs whose target table wasn't parsed — emitting a guessed
+      // `toTable`/`toColumns` would point at a table that may not exist or use
+      // the wrong db name/column. Only emit relations we can fully resolve.
+      if (!target) continue;
+      const toTable = target.tableName;
+      const toColumn = target.propToDbCol.get(ref.toPropKey) ?? ref.toPropKey;
       const cardinality: Cardinality = ref.ownerUnique ? "one-to-one" : "one-to-many";
 
       relations.push({
@@ -374,19 +379,43 @@ function hasDrizzleDependency(pkg: Record<string, unknown> | null): boolean {
 // Parser implementation
 // ---------------------------------------------------------------------------
 
-async function detect(projectPath: string): Promise<boolean> {
-  // 1. A drizzle.config.* file is the strongest signal.
-  for (const cfg of DRIZZLE_CONFIG_FILES) {
-    if (await pathExists(join(projectPath, cfg))) return true;
+/** True when a file's text contains a Drizzle table-builder call. */
+async function fileLooksLikeDrizzle(file: string): Promise<boolean> {
+  try {
+    const text = await readFile(file, "utf8");
+    // A cheap, dependency-free signal: an import from drizzle-orm, or a call to
+    // one of the table builders. Avoids hijacking unrelated `schema.ts` files
+    // (Zod, GraphQL, OpenAPI, …) that merely share a conventional name.
+    if (/from\s+['"]drizzle-orm/.test(text)) return true;
+    return /\b(pgTable|mysqlTable|sqliteTable)\s*\(/.test(text);
+  } catch {
+    return false;
   }
+}
 
-  // 2. drizzle-orm dependency + at least one schema file.
+async function detect(projectPath: string): Promise<boolean> {
   const pkg = await readJson(join(projectPath, "package.json"));
   const schemaFiles = await locateSchemaFiles({ projectPath });
+
+  // 1. drizzle-orm dependency + at least one schema file — strong signal.
   if (hasDrizzleDependency(pkg) && schemaFiles.length > 0) return true;
 
-  // 3. A conventional schema file exists on its own.
-  if (schemaFiles.length > 0) return true;
+  // 2. A drizzle.config.* file AND a locatable schema file. (Config alone is
+  //    not enough — we must have something to parse.)
+  let hasConfig = false;
+  for (const cfg of DRIZZLE_CONFIG_FILES) {
+    if (await pathExists(join(projectPath, cfg))) {
+      hasConfig = true;
+      break;
+    }
+  }
+  if (hasConfig && schemaFiles.length > 0) return true;
+
+  // 3. A conventional schema file that actually contains Drizzle table calls
+  //    (not just any file named schema.ts).
+  for (const f of schemaFiles) {
+    if (await fileLooksLikeDrizzle(f)) return true;
+  }
 
   return false;
 }

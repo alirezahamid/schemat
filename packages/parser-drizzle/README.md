@@ -49,6 +49,20 @@ Detects a Drizzle project when any of these hold:
 Because it's a static parse, a syntactically broken file yields whatever tables
 resolved cleanly rather than throwing.
 
+## Limitations (v1)
+
+- **Column-level `.references()` only.** Table-level constraints declared in the
+  third `pgTable(...)` argument — composite `primaryKey(...)`, `foreignKey(...)`,
+  and table-level `unique(...)` — are not yet mapped. Single-column FKs via
+  `.references()` are fully supported.
+- **Cross-file / unresolved references are skipped.** A `.references(() =>
+  otherTable.id)` whose target table isn't among the parsed files is dropped
+  rather than emitted as a guessed edge, so relations never point at a table
+  that doesn't exist in the diagram. Pass all schema files (or use a single
+  schema file) to capture every relation.
+- `.array()`, `.generatedAlwaysAsIdentity()` and similar modifiers are not
+  reflected in the column type/default yet.
+
 ## License
 
 MIT © Ali Reza Hamid

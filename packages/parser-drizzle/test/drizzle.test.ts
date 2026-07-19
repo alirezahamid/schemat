@@ -61,11 +61,23 @@ describe("drizzleParser", () => {
     expect(await drizzleParser.detect(dir)).toBe(true);
   });
 
-  it("detects via drizzle.config.ts even with no conventional schema path", async () => {
+  it("detects via drizzle.config.ts when a schema file is also present", async () => {
     const dir = await makeProject({
-      "drizzle.config.ts": `export default { schema: './x.ts' };`,
+      "drizzle.config.ts": `export default { schema: './src/schema.ts' };`,
+      "src/schema.ts": PG_SCHEMA,
     });
     expect(await drizzleParser.detect(dir)).toBe(true);
+  });
+
+  it("does not hijack an unrelated schema.ts that isn't Drizzle (e.g. Zod)", async () => {
+    const dir = await makeProject({
+      "src/schema.ts": `
+        import { z } from 'zod';
+        export const userSchema = z.object({ id: z.number(), name: z.string() });
+      `,
+    });
+    // No drizzle-orm import and no *Table() call -> must NOT detect.
+    expect(await drizzleParser.detect(dir)).toBe(false);
   });
 
   it("detects via drizzle-orm dependency + schema file", async () => {
