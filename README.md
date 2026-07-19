@@ -13,7 +13,7 @@ Schemat is an open-source, local-first tool for documenting database schemas —
 
 ## Why
 
-- **Git-native.** Your schema source (Prisma, SQL, DBML, Drizzle, and TypeORM today; more later) is the single source of truth. The diagram follows the repo.
+- **Git-native.** Your schema source (Prisma, SQL, DBML, Drizzle, TypeORM, and MikroORM today; more later) is the single source of truth. The diagram follows the repo.
 - **Local-first.** Runs entirely on your machine. Nothing leaves your laptop.
 - **Live.** `schemat dev` watches your schema files and pushes changes to an interactive canvas over WebSocket — edit, save, see it instantly.
 - **CI-ready.** `schemat check` fails your build when the committed schema docs drift from the live schema. Ships with a GitHub Action.
@@ -77,6 +77,7 @@ Monorepo packages (all published under the [`@schemat`](https://www.npmjs.com/or
 | [`@schemat/parser-dbml`](./packages/parser-dbml) | DBML (dbdiagram.io) → IR. |
 | [`@schemat/parser-drizzle`](./packages/parser-drizzle) | Drizzle ORM (static TS AST) → IR. |
 | [`@schemat/parser-typeorm`](./packages/parser-typeorm) | TypeORM entities (static TS AST) → IR. |
+| [`@schemat/parser-mikroorm`](./packages/parser-mikroorm) | MikroORM entities (static TS AST) → IR. |
 | [`@schemat/render`](./packages/render) | Headless SVG + Mermaid export and diff rendering. |
 | [`@schemat/web`](./packages/web) | Vite + React + React Flow canvas. |
 | [`@schemat/cli`](./packages/cli) | The `schemat` CLI: dev, export, snapshot, check, diff. |
