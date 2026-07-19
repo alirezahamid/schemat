@@ -4,6 +4,7 @@ import type { IRSchema, SchemaParser } from "@schemat/core";
 import { dbmlParser } from "@schemat/parser-dbml";
 import { drizzleParser } from "@schemat/parser-drizzle";
 import { mikroormParser } from "@schemat/parser-mikroorm";
+import { mongooseParser } from "@schemat/parser-mongoose";
 import { prismaParser } from "@schemat/parser-prisma";
 import { sqlParser } from "@schemat/parser-sql";
 import { typeormParser } from "@schemat/parser-typeorm";
@@ -19,6 +20,7 @@ const PARSERS: readonly SchemaParser[] = [
   drizzleParser,
   typeormParser,
   mikroormParser,
+  mongooseParser,
 ];
 
 /** The first parser that detects a schema under `projectPath`, or null. */
@@ -77,7 +79,8 @@ export const SUPPORTED_SOURCES =
   "SQL (<root>/schema.sql), DBML (<root>/schema.dbml), " +
   "Drizzle (<root>/src/schema.ts, drizzle.config.ts), " +
   "TypeORM (*.entity.ts / @Entity classes), " +
-  "or MikroORM (@Entity classes importing @mikro-orm/core)";
+  "MikroORM (@Entity classes importing @mikro-orm/core), " +
+  "or Mongoose (models with new Schema({...}))";
 
 /**
  * Scan a monorepo for schemas one level down under common workspace dirs
