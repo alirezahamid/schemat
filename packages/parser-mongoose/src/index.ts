@@ -81,7 +81,7 @@ function mapMongooseType(typeText: string): string {
   // Normalise things like "Schema.Types.ObjectId" / "mongoose.Schema.Types.ObjectId"
   // / "Types.ObjectId" -> "ObjectId".
   const t = typeText.trim();
-  if (/ObjectId$/.test(t)) return "ObjectId";
+  if (t === "ObjectId" || /\.ObjectId$/.test(t)) return "ObjectId";
   if (/(^|\.)Mixed$/.test(t) || /Schema\.Types\.Mixed$/.test(t)) return "Mixed";
   if (/(^|\.)Decimal128$/.test(t)) return "Decimal128";
   // Bare known constructors.
@@ -98,10 +98,11 @@ function mapMongooseType(typeText: string): string {
       return "Buffer";
     case "Map":
       return "Map";
-    default:
+    default: {
       // Fallback: last identifier segment (e.g. "foo.Bar" -> "Bar").
       const seg = t.split(".").pop() ?? t;
       return seg || "Unknown";
+    }
   }
 }
 
@@ -128,6 +129,20 @@ function literalToString(node: Node | undefined): string | null {
 function readBool(node: Node | undefined): boolean {
   if (!node) return false;
   return node.getKind() === SyntaxKind.TrueKeyword;
+}
+
+/**
+ * Read a Mongoose `required` value: either `true` or the array form
+ * `[true, 'message']` (first element is the boolean). Everything else => false.
+ */
+function readRequired(node: Node | undefined): boolean {
+  if (!node) return false;
+  if (node.getKind() === SyntaxKind.TrueKeyword) return true;
+  if (Node.isArrayLiteralExpression(node)) {
+    const first = node.getElements()[0];
+    return first?.getKind() === SyntaxKind.TrueKeyword;
+  }
+  return false;
 }
 
 /** Read `['a','b']` array of string literals; non-strings are stringified. */
@@ -208,8 +223,25 @@ function parseFieldValue(name: string, valueNode: Node): ParsedField {
   const opts = Node.isObjectLiteralExpression(valueNode) ? asOptionsObject(valueNode) : null;
   if (opts) {
     const typeExpr = propValue(opts, "type");
-    if (typeExpr) field.type = mapMongooseType(typeExpr.getText());
-    field.required = readBool(propValue(opts, "required"));
+    if (typeExpr) {
+      // `type: [X]` / `type: [{ type: ObjectId, ref }]` — an array type inside
+      // the options object. Recurse on the element and mark the field as array.
+      if (Node.isArrayLiteralExpression(typeExpr)) {
+        field.isArray = true;
+        const el = typeExpr.getElements()[0];
+        if (el) {
+          const inner = parseFieldValue(name, el);
+          field.type = inner.type;
+          field.ref = inner.ref;
+          field.enumValues = inner.enumValues;
+        } else {
+          field.type = "Array";
+        }
+      } else {
+        field.type = mapMongooseType(typeExpr.getText());
+      }
+    }
+    field.required = readRequired(propValue(opts, "required"));
     field.unique = readBool(propValue(opts, "unique"));
     field.default = literalToString(propValue(opts, "default"));
     const enumNode = propValue(opts, "enum");
@@ -336,16 +368,21 @@ function buildTable(
 ): Table {
   const columns: Column[] = [];
 
-  // Implicit Mongo `_id` primary key on every model.
-  columns.push({
-    name: "_id",
-    type: "ObjectId",
-    nullable: false,
-    isPrimaryKey: true,
-    isUnique: true,
-    default: null,
-    comment: "Implicit MongoDB primary key",
-  });
+  // Mongoose auto-adds an `_id` ObjectId primary key — but only if the schema
+  // doesn't already declare an `_id` field itself. If it does, promote that
+  // field to the primary key rather than emitting a duplicate `_id` column.
+  const hasExplicitId = schema.fields.some((f) => f.name === "_id");
+  if (!hasExplicitId) {
+    columns.push({
+      name: "_id",
+      type: "ObjectId",
+      nullable: false,
+      isPrimaryKey: true,
+      isUnique: true,
+      default: null,
+      comment: "Implicit MongoDB primary key",
+    });
+  }
 
   for (const f of schema.fields) {
     // Relation via ref.
@@ -375,7 +412,7 @@ function buildTable(
 
     // Enum on a String field -> named enum + column type = enum name.
     let colType = f.type;
-    if (f.enumValues && f.enumValues.length && f.type === "String") {
+    if (f.enumValues?.length && f.type === "String") {
       const enumName = `${tableName}_${f.name}`;
       if (!enums.some((e) => e.name === enumName)) {
         enums.push({ name: enumName, values: f.enumValues });
@@ -392,8 +429,9 @@ function buildTable(
       name: f.name,
       type: colType,
       nullable: !f.required,
-      isPrimaryKey: false,
-      isUnique: f.unique,
+      // An explicitly-declared `_id` field is the primary key.
+      isPrimaryKey: f.name === "_id",
+      isUnique: f.name === "_id" ? true : f.unique,
       default: f.default,
       comment: null,
     });
@@ -440,7 +478,7 @@ async function detect(projectPath: string): Promise<boolean> {
         ...(pkg.devDependencies ?? {}),
         ...(pkg.peerDependencies ?? {}),
       };
-      if (deps["mongoose"]) return true;
+      if (deps.mongoose) return true;
     }
   } catch {
     // ignore malformed package.json
@@ -479,7 +517,7 @@ async function detect(projectPath: string): Promise<boolean> {
 async function parse(input: ParserInput): Promise<IRSchema> {
   const project = makeProject();
 
-  if (input.files && input.files.length) {
+  if (input.files?.length) {
     for (const f of input.files) {
       const abs = f.startsWith("/") ? f : join(input.projectPath, f);
       if (existsSync(abs)) project.addSourceFileAtPath(abs);
@@ -539,6 +577,10 @@ async function parse(input: ParserInput): Promise<IRSchema> {
     version: IR_VERSION,
     tables,
     enums,
+    // Mongoose `ref`s are a convention, not an enforced FK, and commonly point
+    // at a model defined in another file that may be outside the parsed set. We
+    // keep every ref-derived relation (the IR allows a toTable with no matching
+    // node) rather than dropping cross-file relationships.
     relations,
   };
 

@@ -116,8 +116,8 @@ describe("mongooseParser.parse — User model", () => {
   });
 
   it("adds an implicit _id primary key (ObjectId)", () => {
-    const t = ir.tables.find((t) => t.name === "User")!;
-    const id = t.columns.find((c) => c.name === "_id")!;
+    const t = ir.tables.find((t) => t.name === "User");
+    const id = t.columns.find((c) => c.name === "_id");
     expect(id).toBeDefined();
     expect(id.isPrimaryKey).toBe(true);
     expect(id.type).toBe("ObjectId");
@@ -125,26 +125,26 @@ describe("mongooseParser.parse — User model", () => {
   });
 
   it("reads required + unique + type flags", () => {
-    const t = ir.tables.find((t) => t.name === "User")!;
-    const username = t.columns.find((c) => c.name === "username")!;
+    const t = ir.tables.find((t) => t.name === "User");
+    const username = t.columns.find((c) => c.name === "username");
     expect(username.type).toBe("String");
     expect(username.nullable).toBe(false); // required
     expect(username.isUnique).toBe(true);
   });
 
   it("handles shorthand form (age: Number)", () => {
-    const t = ir.tables.find((t) => t.name === "User")!;
-    const age = t.columns.find((c) => c.name === "age")!;
+    const t = ir.tables.find((t) => t.name === "User");
+    const age = t.columns.find((c) => c.name === "age");
     expect(age.type).toBe("Number");
     expect(age.nullable).toBe(true);
     expect(age.isUnique).toBe(false);
   });
 
   it("reads default values", () => {
-    const t = ir.tables.find((t) => t.name === "User")!;
-    const role = t.columns.find((c) => c.name === "role")!;
+    const t = ir.tables.find((t) => t.name === "User");
+    const role = t.columns.find((c) => c.name === "role");
     expect(role.default).toBe("member");
-    const active = t.columns.find((c) => c.name === "active")!;
+    const active = t.columns.find((c) => c.name === "active");
     expect(active.type).toBe("Boolean");
     expect(active.default).toBe("true");
   });
@@ -152,14 +152,14 @@ describe("mongooseParser.parse — User model", () => {
   it("produces a named enum for enum String fields", () => {
     const e = ir.enums.find((e) => e.name === "User_role");
     expect(e).toBeDefined();
-    expect(e!.values).toEqual(["admin", "member"]);
-    const t = ir.tables.find((t) => t.name === "User")!;
-    const role = t.columns.find((c) => c.name === "role")!;
+    expect(e?.values).toEqual(["admin", "member"]);
+    const t = ir.tables.find((t) => t.name === "User");
+    const role = t.columns.find((c) => c.name === "role");
     expect(role.type).toBe("User_role");
   });
 
   it("creates a one-to-many relation for a single ObjectId ref", () => {
-    const rel = ir.relations.find((r) => r.name === "User_author")!;
+    const rel = ir.relations.find((r) => r.name === "User_author");
     expect(rel).toBeDefined();
     expect(rel.fromTable).toBe("User");
     expect(rel.fromColumns).toEqual(["author"]);
@@ -169,7 +169,7 @@ describe("mongooseParser.parse — User model", () => {
   });
 
   it("creates a many-to-many relation for an array-of-ref", () => {
-    const rel = ir.relations.find((r) => r.name === "User_posts")!;
+    const rel = ir.relations.find((r) => r.name === "User_posts");
     expect(rel).toBeDefined();
     expect(rel.fromTable).toBe("User");
     expect(rel.toTable).toBe("Post");
@@ -179,9 +179,33 @@ describe("mongooseParser.parse — User model", () => {
   });
 
   it("collapses nested subdocuments into an Object column (v1 simplification)", () => {
-    const t = ir.tables.find((t) => t.name === "User")!;
-    const profile = t.columns.find((c) => c.name === "profile")!;
+    const t = ir.tables.find((t) => t.name === "User");
+    const profile = t.columns.find((c) => c.name === "profile");
     expect(profile.type).toBe("Object");
+  });
+
+  it("handles array type inside options object and array-form required", async () => {
+    const dir = makeProjectDir({
+      "models/Team.ts": `
+        import mongoose from "mongoose";
+        const { Schema } = mongoose;
+        const teamSchema = new Schema({
+          name: { type: String, required: [true, "name is required"] },
+          members: { type: [{ type: Schema.Types.ObjectId, ref: "User" }] },
+        });
+        export const Team = mongoose.model("Team", teamSchema);
+      `,
+    });
+    const ir2 = await mongooseParser.parse({ projectPath: dir });
+    const team = ir2.tables.find((t) => t.name === "Team");
+    const name = team.columns.find((c) => c.name === "name");
+    // required: [true, "..."] -> not nullable
+    expect(name.nullable).toBe(false);
+    // members: { type: [{...ref}] } -> a many-to-many relation to User
+    const rel = ir2.relations.find((r) => r.name === "Team_members");
+    expect(rel).toBeDefined();
+    expect(rel.toTable).toBe("User");
+    expect(rel.cardinality).toBe("many-to-many");
   });
 });
 
@@ -191,9 +215,9 @@ describe("mongooseParser.parse — destructured Schema + model", () => {
     const ir = await mongooseParser.parse({ projectPath: dir });
     const t = ir.tables.find((t) => t.name === "Post");
     expect(t).toBeDefined();
-    const title = t!.columns.find((c) => c.name === "title")!;
+    const title = t?.columns.find((c) => c.name === "title");
     expect(title.nullable).toBe(false);
-    const rel = ir.relations.find((r) => r.name === "Post_owner")!;
+    const rel = ir.relations.find((r) => r.name === "Post_owner");
     expect(rel.toTable).toBe("User");
     expect(rel.cardinality).toBe("one-to-many");
   });
@@ -226,7 +250,7 @@ describe("mongooseParser.parse — fallback to schema variable name", () => {
     // "widgetSchema" -> strip "Schema" -> "widget" -> "Widget"
     const t = ir.tables.find((t) => t.name === "Widget");
     expect(t).toBeDefined();
-    expect(t!.columns.some((c) => c.name === "_id" && c.isPrimaryKey)).toBe(true);
+    expect(t?.columns.some((c) => c.name === "_id" && c.isPrimaryKey)).toBe(true);
   });
 });
 
@@ -248,7 +272,7 @@ describe("mongooseParser.parse — edge cases", () => {
       `,
     });
     const ir = await mongooseParser.parse({ projectPath: dir });
-    const t = ir.tables.find((t) => t.name === "Empty")!;
+    const t = ir.tables.find((t) => t.name === "Empty");
     expect(t).toBeDefined();
     // Only the implicit _id column.
     expect(t.columns).toHaveLength(1);
@@ -279,7 +303,7 @@ describe("mongooseParser.parse — edge cases", () => {
       `,
     });
     const ir = await mongooseParser.parse({ projectPath: dir });
-    const t = ir.tables.find((t) => t.name === "Ghost")!;
+    const t = ir.tables.find((t) => t.name === "Ghost");
     expect(t).toBeDefined();
     expect(t.columns).toHaveLength(1); // just _id
     expect(t.columns[0].isPrimaryKey).toBe(true);
