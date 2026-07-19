@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@schemat/core": "workspace:*",
-    "@prisma/internals": "6.1.0"
+    "@prisma/internals": "7.8.0"
   },
   "devDependencies": {
     "@types/node": "20.17.10",
