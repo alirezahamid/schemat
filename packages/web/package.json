@@ -1,10 +1,12 @@
 {
   "name": "@schemat/web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Interactive schema canvas for Schemat (React Flow).",
   "license": "MIT",
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -36,7 +38,14 @@
   "bugs": {
     "url": "https://github.com/alirezahamid/schemat/issues"
   },
-  "keywords": ["erd", "react", "react-flow", "canvas", "schema", "viewer"],
+  "keywords": [
+    "erd",
+    "react",
+    "react-flow",
+    "canvas",
+    "schema",
+    "viewer"
+  ],
   "publishConfig": {
     "access": "public",
     "provenance": true

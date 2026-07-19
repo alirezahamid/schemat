@@ -1,6 +1,6 @@
 {
   "name": "@schemat/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Canonical IR, parser interface, and differ for Schemat.",
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,9 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
@@ -36,7 +38,14 @@
   "bugs": {
     "url": "https://github.com/alirezahamid/schemat/issues"
   },
-  "keywords": ["prisma", "erd", "schema", "ir", "database", "er-diagram"],
+  "keywords": [
+    "prisma",
+    "erd",
+    "schema",
+    "ir",
+    "database",
+    "er-diagram"
+  ],
   "publishConfig": {
     "access": "public",
     "provenance": true

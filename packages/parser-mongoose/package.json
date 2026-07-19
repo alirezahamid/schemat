@@ -1,6 +1,6 @@
 {
   "name": "@schemat/parser-mongoose",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mongoose parser for Schemat (Mongoose schemas -> IR, static AST).",
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,9 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
@@ -38,7 +40,13 @@
   "bugs": {
     "url": "https://github.com/alirezahamid/schemat/issues"
   },
-  "keywords": ["mongoose", "mongodb", "erd", "schema", "parser"],
+  "keywords": [
+    "mongoose",
+    "mongodb",
+    "erd",
+    "schema",
+    "parser"
+  ],
   "publishConfig": {
     "access": "public",
     "provenance": true

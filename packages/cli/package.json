@@ -1,13 +1,15 @@
 {
   "name": "@schemat/cli",
-  "version": "0.1.0",
-  "description": "Git-native database schema documentation \u2014 live interactive ER diagrams from your repo.",
+  "version": "0.2.0",
+  "description": "Git-native database schema documentation — live interactive ER diagrams from your repo.",
   "license": "MIT",
   "type": "module",
   "bin": {
     "schemat": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
