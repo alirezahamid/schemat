@@ -2,6 +2,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { IRSchema, SchemaParser } from "@schemat/core";
 import { dbmlParser } from "@schemat/parser-dbml";
+import { drizzleParser } from "@schemat/parser-drizzle";
 import { prismaParser } from "@schemat/parser-prisma";
 import { sqlParser } from "@schemat/parser-sql";
 
@@ -9,7 +10,7 @@ import { sqlParser } from "@schemat/parser-sql";
  * All parsers Schemat knows about, in detection priority order. Adding a source
  * is a new entry here — nothing else in the CLI changes (the modular seam).
  */
-const PARSERS: readonly SchemaParser[] = [prismaParser, sqlParser, dbmlParser];
+const PARSERS: readonly SchemaParser[] = [prismaParser, sqlParser, dbmlParser, drizzleParser];
 
 /** The first parser that detects a schema under `projectPath`, or null. */
 export async function detectParser(projectPath: string): Promise<SchemaParser | null> {
@@ -64,7 +65,8 @@ export async function resolveSchemaFrom(target: string): Promise<IRSchema | null
 /** Human list of the sources Schemat can detect, for error messages. */
 export const SUPPORTED_SOURCES =
   "Prisma (<root>/prisma/schema.prisma, or a <root>/prisma/schema/ folder), " +
-  "SQL (<root>/schema.sql), or DBML (<root>/schema.dbml)";
+  "SQL (<root>/schema.sql), DBML (<root>/schema.dbml), " +
+  "or Drizzle (<root>/src/schema.ts, drizzle.config.ts)";
 
 /**
  * Scan a monorepo for schemas one level down under common workspace dirs
