@@ -17,6 +17,7 @@
     "@schemat/core": "workspace:*",
     "@schemat/parser-dbml": "workspace:*",
     "@schemat/parser-drizzle": "workspace:*",
+    "@schemat/parser-mikroorm": "workspace:*",
     "@schemat/parser-prisma": "workspace:*",
     "@schemat/parser-sql": "workspace:*",
     "@schemat/parser-typeorm": "workspace:*",

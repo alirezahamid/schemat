@@ -32,6 +32,9 @@ importers:
       '@schemat/parser-drizzle':
         specifier: workspace:*
         version: link:../parser-drizzle
+      '@schemat/parser-mikroorm':
+        specifier: workspace:*
+        version: link:../parser-mikroorm
       '@schemat/parser-prisma':
         specifier: workspace:*
         version: link:../parser-prisma
