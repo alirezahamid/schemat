@@ -50,8 +50,10 @@ required so TypeORM projects (which also use `@Entity`) aren't mis-detected.
 - Synthetic FK column naming (`<property>Id` → `['id']`); explicit
   `@ManyToOne({ joinColumn })` / `referencedColumnName` and composite keys aren't
   read yet.
-- `@Enum` values referenced from a `enum` declaration outside the parsed files
-  resolve to an empty `values` array.
+- Relations to a class that isn't a parsed `@Entity` are skipped rather than
+  emitted as a dangling edge.
+- `@Enum` values referenced from an `enum` declaration outside the parsed files
+  resolve to no enum node (the column keeps the referenced type name).
 
 ## License
 

@@ -89,37 +89,11 @@ function fileHasEntityDecorator(path: string): boolean {
 // ---------------------------------------------------------------------------
 
 async function detect(projectPath: string): Promise<boolean> {
-  const pkgPath = join(projectPath, "package.json");
-  if (existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as Record<
-        string,
-        Record<string, string> | undefined
-      >;
-      for (const field of [
-        "dependencies",
-        "devDependencies",
-        "peerDependencies",
-        "optionalDependencies",
-      ]) {
-        const deps = pkg[field];
-        if (deps) {
-          for (const dep of Object.keys(deps)) {
-            if (dep === "@mikro-orm/core" || dep.startsWith("@mikro-orm/")) return true;
-          }
-        }
-      }
-    } catch {
-      // ignore malformed package.json
-    }
-  }
-
-  // Require a `@mikro-orm` import signal so we don't false-positive TypeORM
-  // (which also uses @Entity but imports from "typeorm").
+  // Require an actual MikroORM entity: an @Entity decorator in a file that also
+  // imports @mikro-orm. A bare @mikro-orm dependency is NOT enough (a TypeORM
+  // project may depend on MikroORM too), and the @mikro-orm import guards
+  // against claiming TypeORM's @Entity.
   const tsFiles = walkTsFiles(projectPath);
-  for (const f of tsFiles) {
-    if (fileImportsMikroOrm(f)) return true;
-  }
   for (const f of tsFiles) {
     if (fileHasEntityDecorator(f) && fileImportsMikroOrm(f)) return true;
   }
@@ -236,7 +210,7 @@ function extractProperty(prop: PropertyDeclaration, dec: Decorator): Column {
 
 interface ExtractedEnum {
   column: Column;
-  enum: Enum;
+  enum: Enum | undefined;
 }
 
 function extractEnum(
@@ -253,7 +227,7 @@ function extractEnum(
   const defaultVal = readDefault(opts);
 
   let type = "";
-  let capturedEnum: Enum;
+  let capturedEnum: Enum | undefined;
 
   // `@Enum(() => SomeEnum)` — arrow returning an identifier.
   let enumRef: string | undefined;
@@ -280,11 +254,16 @@ function extractEnum(
     const ref = enumRef ?? itemsRef;
     if (ref) {
       type = ref;
-      capturedEnum = { name: ref, values: enumValues.get(ref) ?? [] };
+      // Only attach an enum node when we actually resolved its members; a
+      // reference to an `enum` declared outside the parsed files would otherwise
+      // emit a bogus empty enum.
+      const values = enumValues.get(ref);
+      capturedEnum = values && values.length > 0 ? { name: ref, values } : undefined;
     } else {
-      const fallback = tsTypeToColumnType(prop);
-      type = fallback;
-      capturedEnum = { name: fallback, values: enumValues.get(fallback) ?? [] };
+      // No identifier and no inline items — fall back to the property's TS type
+      // as the column type and emit no enum node.
+      type = tsTypeToColumnType(prop);
+      capturedEnum = undefined;
     }
   }
 
@@ -492,7 +471,11 @@ async function parse(input: ParserInput): Promise<IRSchema> {
         const relDec = decs.find((d) => RELATION_DECORATORS.has(d.getName()));
         if (relDec) {
           const rel = extractRelation(prop, relDec, tableName, classToTable);
-          if (rel) relations.push(rel);
+          // Skip relations whose target class isn't a known @Entity table — a
+          // raw class name would produce a dangling edge to a nonexistent node.
+          if (rel && classToTable.has(relationTargetName(relDec) ?? "")) {
+            relations.push(rel);
+          }
         }
       }
 

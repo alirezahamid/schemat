@@ -92,9 +92,18 @@ export class Tag {
 `;
 
 describe("mikroormParser.detect", () => {
-  it("detects a project with @mikro-orm dependency", async () => {
+  it("does NOT detect on a @mikro-orm dependency alone (no entity file)", async () => {
     const dir = makeProject({
       "package.json": JSON.stringify({ dependencies: { "@mikro-orm/core": "^6.0.0" } }),
+    });
+    // A bare dependency is not enough — an actual @Entity must be present.
+    expect(await mikroormParser.detect(dir)).toBe(false);
+  });
+
+  it("detects a @mikro-orm project that has an entity file", async () => {
+    const dir = makeProject({
+      "package.json": JSON.stringify({ dependencies: { "@mikro-orm/core": "^6.0.0" } }),
+      "src/user.entity.ts": USER_ENTITY,
     });
     expect(await mikroormParser.detect(dir)).toBe(true);
   });
