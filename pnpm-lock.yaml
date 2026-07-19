@@ -35,6 +35,9 @@ importers:
       '@schemat/parser-mikroorm':
         specifier: workspace:*
         version: link:../parser-mikroorm
+      '@schemat/parser-mongoose':
+        specifier: workspace:*
+        version: link:../parser-mongoose
       '@schemat/parser-prisma':
         specifier: workspace:*
         version: link:../parser-prisma
