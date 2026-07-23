@@ -29,11 +29,11 @@
     "ws": "8.18.0"
   },
   "devDependencies": {
-    "@types/node": "20.17.10",
+    "@types/node": "26.1.1",
     "@types/ws": "8.5.13",
-    "tsup": "8.3.5",
-    "tsx": "4.19.2",
-    "typescript": "5.7.2"
+    "tsup": "8.5.1",
+    "tsx": "4.23.1",
+    "typescript": "7.0.2"
   },
   "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
   "homepage": "https://github.com/alirezahamid/schemat#readme",

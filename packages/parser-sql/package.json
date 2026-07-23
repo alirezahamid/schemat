@@ -22,10 +22,10 @@
     "@schemat/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "20.17.10",
-    "tsup": "8.3.5",
-    "typescript": "5.7.2",
-    "vitest": "2.1.8"
+    "@types/node": "26.1.1",
+    "tsup": "8.5.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
   },
   "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
   "homepage": "https://github.com/alirezahamid/schemat#readme",
