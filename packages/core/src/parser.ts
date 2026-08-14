@@ -17,7 +17,11 @@ export interface ParserResult {
 export type ParserOutput = IRSchema | ParserResult;
 
 export function normalizeParserOutput(output: ParserOutput): ParserResult {
-  return "schema" in output ? output : { schema: output, warnings: [] };
+  if (!("schema" in output)) return { schema: output, warnings: [] };
+  // A parser may hand back a result without warnings; callers rely on the
+  // array always being present, so fill it in rather than making every one
+  // of them guard.
+  return output.warnings ? output : { schema: output.schema, warnings: [] };
 }
 
 /**
