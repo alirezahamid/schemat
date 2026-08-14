@@ -262,3 +262,132 @@ describe("dump-style constraints", () => {
     expect(ir.tables[0]?.columns.map((column) => column.name)).toEqual(["id", "author_id"]);
   });
 });
+
+describe("`key` / `index` as column names (B1 regression)", () => {
+  // `key` and `index` are UNRESERVED keywords in PostgreSQL and are legal column
+  // names. Detection of MySQL inline indexes must be shape-aware, not
+  // first-token-aware, or these real columns are silently dropped.
+
+  it("keeps a PostgreSQL column named `key` with its type and flags", () => {
+    const ir = parseSql(`CREATE TABLE digests (
+      id uuid NOT NULL,
+      key text NOT NULL,
+      time_zone text NOT NULL
+    );`);
+    const digests = ir.tables.find((table) => table.name === "digests");
+    expect(digests?.columns.map((column) => column.name)).toEqual(["id", "key", "time_zone"]);
+    expect(digests?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+  });
+
+  it("keeps a `key` column declared with a parameterised type", () => {
+    const ir = parseSql(`CREATE TABLE tutorials (
+      id uuid NOT NULL,
+      key character varying(255) NOT NULL,
+      current_step integer DEFAULT 1 NOT NULL
+    );`);
+    const tutorials = ir.tables.find((table) => table.name === "tutorials");
+    expect(tutorials?.columns.map((column) => column.name)).toEqual(["id", "key", "current_step"]);
+    expect(tutorials?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+  });
+
+  it("keeps a PostgreSQL column named `index` with its type and flags", () => {
+    const ir = parseSql(`CREATE TABLE steps (
+      id uuid NOT NULL,
+      index integer DEFAULT 0 NOT NULL,
+      label text
+    );`);
+    const steps = ir.tables.find((table) => table.name === "steps");
+    expect(steps?.columns.map((column) => column.name)).toEqual(["id", "index", "label"]);
+    expect(steps?.columns.find((column) => column.name === "index")).toMatchObject({
+      type: "int",
+      nullable: false,
+    });
+    expect(steps?.columns.find((column) => column.name === "label")?.nullable).toBe(true);
+  });
+
+  it("keeps the relation from a `key` column carrying an inline REFERENCES", () => {
+    const ir = parseSql(`CREATE TABLE digests (id uuid NOT NULL PRIMARY KEY);
+      CREATE TABLE locators (
+        id uuid NOT NULL,
+        key text NOT NULL REFERENCES digests (id)
+      );`);
+    const locators = ir.tables.find((table) => table.name === "locators");
+    expect(locators?.columns.map((column) => column.name)).toEqual(["id", "key"]);
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "locators",
+        fromColumns: ["key"],
+        toTable: "digests",
+        toColumns: ["id"],
+      }),
+    );
+  });
+
+  it("still treats every MySQL index variant as an index, with no phantom columns", () => {
+    const ir = parseSql(`CREATE TABLE \`posts\` (
+      \`id\` bigint NOT NULL,
+      \`email\` varchar(255) NOT NULL,
+      \`author_id\` bigint NOT NULL,
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`posts_email_key\` (\`email\`),
+      KEY \`idx_author\` (\`author_id\`),
+      INDEX \`idx_id\` (\`id\`),
+      FULLTEXT KEY \`posts_email_fulltext\` (\`email\`),
+      SPATIAL INDEX \`posts_spatial\` (\`id\`),
+      KEY \`idx_using\` USING BTREE (\`author_id\`),
+      KEY (\`email\`)
+    );`);
+    const posts = ir.tables.find((table) => table.name === "posts");
+    expect(posts?.columns.map((column) => column.name)).toEqual(["id", "email", "author_id"]);
+    expect(posts?.columns.find((column) => column.name === "email")?.isUnique).toBe(true);
+    expect(posts?.columns.find((column) => column.name === "id")?.isPrimaryKey).toBe(true);
+  });
+
+  it("parses a dump fixture where `key` and `index` are real columns", async () => {
+    const ir = parseSql(await readFile(fixturePath("postgresql-key-columns.sql"), "utf8"));
+
+    expect(ir.tables.map((table) => table.name)).toEqual(["digests", "tutorials", "post_locators"]);
+
+    const digests = ir.tables.find((table) => table.name === "digests");
+    expect(digests?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+
+    const tutorials = ir.tables.find((table) => table.name === "tutorials");
+    expect(tutorials?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+
+    const locators = ir.tables.find((table) => table.name === "post_locators");
+    expect(locators?.columns.map((column) => column.name)).toEqual([
+      "id",
+      "post_id",
+      "key",
+      "index",
+      "scope",
+    ]);
+    expect(locators?.columns.find((column) => column.name === "index")).toMatchObject({
+      type: "int",
+      nullable: false,
+    });
+    // ALTER ... UNIQUE (key, index) must resolve against those real columns.
+    expect(locators?.columns.find((column) => column.name === "key")?.isUnique).toBe(true);
+    expect(locators?.columns.find((column) => column.name === "index")?.isUnique).toBe(true);
+    // The inline REFERENCES on the `key` column must survive.
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "post_locators",
+        fromColumns: ["key"],
+        toTable: "digests",
+      }),
+    );
+  });
+});
