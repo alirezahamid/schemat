@@ -267,41 +267,31 @@ const TABLE_CONSTRAINT_RE =
   /^\s*(?:CONSTRAINT\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w]+)\s+)?(PRIMARY\s+KEY|UNIQUE|FOREIGN\s+KEY|CHECK)\b/i;
 const INLINE_INDEX_RE = /^\s*(?:(?:UNIQUE|FULLTEXT|SPATIAL)\s+)?(?:KEY|INDEX)\b/i;
 
-/** Read a single identifier from the start of a string; returns [ident, rest].
- *  Handles quoted forms ("x" / `x` / [x]), plain dotted names (a.b.c), and a
- *  schema-qualified quoted tail (e.g. public."users"). */
+/** Read a dotted identifier from the start of a string; returns [ident, rest].
+ * Handles quoted ("x" / `x` / [x]) and unquoted segments in any combination. */
 function readIdentifier(s: string): [string, string] {
-  let t = s.trimStart();
-  let prefix = "";
+  const t = s.trimStart();
+  let end = 0;
 
-  // Consume any dotted plain-identifier prefix followed by a dot, so a
-  // schema-qualified name like public."users" or db.public.tbl parses whole.
-  // Loop while we see `<word>.` and the char after the dot starts a new segment.
-  for (;;) {
-    const seg = /^([A-Za-z_]\w*)\./.exec(t);
-    if (!seg) break;
-    prefix += seg[0];
-    t = t.slice(seg[0].length);
-  }
+  const readSegment = (start: number): number => {
+    const opener = t[start];
+    if (opener === '"' || opener === "`" || opener === "[") {
+      const closer = opener === "[" ? "]" : opener;
+      const close = t.indexOf(closer, start + 1);
+      return close < 0 ? t.length : close + 1;
+    }
+    const match = /^[A-Za-z_]\w*/.exec(t.slice(start));
+    return match ? start + match[0].length : start;
+  };
 
-  if (t.startsWith('"')) {
-    const end = t.indexOf('"', 1);
-    if (end < 0) return [prefix + t, ""];
-    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
+  end = readSegment(0);
+  if (end === 0) return ["", t];
+  while (t[end] === ".") {
+    const segmentEnd = readSegment(end + 1);
+    if (segmentEnd === end + 1) break;
+    end = segmentEnd;
   }
-  if (t.startsWith("`")) {
-    const end = t.indexOf("`", 1);
-    if (end < 0) return [prefix + t, ""];
-    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
-  }
-  if (t.startsWith("[")) {
-    const end = t.indexOf("]", 1);
-    if (end < 0) return [prefix + t, ""];
-    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
-  }
-  const m = /^[\w.]+/.exec(t);
-  if (m) return [prefix + m[0], t.slice(m[0].length)];
-  return [prefix, t];
+  return [t.slice(0, end), t.slice(end)];
 }
 
 /** Parenthesized column list, e.g. `(a, "b", c)` -> ["a","b","c"]. */

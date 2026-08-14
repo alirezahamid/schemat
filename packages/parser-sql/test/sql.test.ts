@@ -182,6 +182,31 @@ describe("dump-style constraints", () => {
     );
   });
 
+  it("applies ALTER constraints and REFERENCES to fully quoted qualified tables", () => {
+    const ir = parseSql(`
+      CREATE TABLE "app"."users" (tenant_id bigint NOT NULL, id bigint NOT NULL, email text);
+      CREATE TABLE "app"."posts" (tenant_id bigint NOT NULL, id bigint NOT NULL, author_id bigint);
+      ALTER TABLE ONLY "app"."users" ADD CONSTRAINT "users_pkey" PRIMARY KEY (tenant_id, id);
+      ALTER TABLE "app"."users" ADD CONSTRAINT "users_email_key" UNIQUE (email);
+      ALTER TABLE "app"."posts" ADD CONSTRAINT "posts_author_fkey"
+        FOREIGN KEY (tenant_id, author_id) REFERENCES "app"."users" (tenant_id, id);
+    `);
+
+    expect(ir.tables.map((table) => table.name)).toEqual(["users", "posts"]);
+    expect(
+      ir.tables[0]?.columns.filter((column) => column.isPrimaryKey).map((column) => column.name),
+    ).toEqual(["tenant_id", "id"]);
+    expect(ir.tables[0]?.columns.find((column) => column.name === "email")?.isUnique).toBe(true);
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "posts",
+        fromColumns: ["tenant_id", "author_id"],
+        toTable: "users",
+        toColumns: ["tenant_id", "id"],
+      }),
+    );
+  });
+
   it("does not emit MySQL inline KEY or INDEX entries as columns", () => {
     const ir = parseSql(`CREATE TABLE posts (
       id bigint NOT NULL, author_id bigint NOT NULL,
