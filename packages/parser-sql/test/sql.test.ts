@@ -154,3 +154,39 @@ describe("sql parser detect + parse from disk", () => {
     expect(t?.columns.find((c) => c.name === "id")?.isPrimaryKey).toBe(true);
   });
 });
+
+describe("dump-style constraints", () => {
+  it("applies PostgreSQL ALTER TABLE constraints after CREATE TABLE", () => {
+    const ir = parseSql(`
+      CREATE TABLE public."users" (id bigint NOT NULL, email text NOT NULL);
+      CREATE TABLE public.posts (id bigint NOT NULL, author_id bigint NOT NULL);
+      ALTER TABLE ONLY public."users" ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+      ALTER TABLE public."users" ADD CONSTRAINT users_email_key UNIQUE (email);
+      ALTER TABLE ONLY public.posts ADD CONSTRAINT posts_pkey PRIMARY KEY (id);
+      ALTER TABLE public.posts ADD CONSTRAINT posts_author_fkey FOREIGN KEY (author_id)
+        REFERENCES public."users" (id);
+    `);
+    const users = ir.tables.find((table) => table.name === "users");
+    expect(users?.columns.find((column) => column.name === "id")).toMatchObject({
+      isPrimaryKey: true,
+      nullable: false,
+    });
+    expect(users?.columns.find((column) => column.name === "email")?.isUnique).toBe(true);
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "posts",
+        fromColumns: ["author_id"],
+        toTable: "users",
+        toColumns: ["id"],
+      }),
+    );
+  });
+
+  it("does not emit MySQL inline KEY or INDEX entries as columns", () => {
+    const ir = parseSql(`CREATE TABLE posts (
+      id bigint NOT NULL, author_id bigint NOT NULL,
+      PRIMARY KEY (id), KEY idx_author (author_id), INDEX idx_id (id)
+    );`);
+    expect(ir.tables[0]?.columns.map((column) => column.name)).toEqual(["id", "author_id"]);
+  });
+});

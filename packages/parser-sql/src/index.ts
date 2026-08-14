@@ -265,6 +265,7 @@ function splitTopLevel(body: string): string[] {
 
 const TABLE_CONSTRAINT_RE =
   /^\s*(?:CONSTRAINT\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w]+)\s+)?(PRIMARY\s+KEY|UNIQUE|FOREIGN\s+KEY|CHECK)\b/i;
+const INLINE_INDEX_RE = /^\s*(?:(?:UNIQUE|FULLTEXT|SPATIAL)\s+)?(?:KEY|INDEX)\b/i;
 
 /** Read a single identifier from the start of a string; returns [ident, rest].
  *  Handles quoted forms ("x" / `x` / [x]), plain dotted names (a.b.c), and a
@@ -428,6 +429,7 @@ function parseCreateTable(stmt: string): TableResult | null {
   const uniqueColumns = new Set<string>();
 
   for (const item of items) {
+    if (INLINE_INDEX_RE.test(item)) continue;
     const constraintMatch = TABLE_CONSTRAINT_RE.exec(item);
     if (constraintMatch) {
       const kind = (constraintMatch[1] ?? "").toUpperCase().replace(/\s+/g, " ");
@@ -500,6 +502,32 @@ function makeRelation(fromTable: string, fromColumn: string, fk: ParsedInlineFk)
   };
 }
 
+function applyAlterConstraint(stmt: string, tables: Table[], relations: Relation[]): void {
+  const prefix = /^ALTER\s+TABLE\s+(?:ONLY\s+)?/i.exec(stmt);
+  if (!prefix) return;
+  const [rawTable, rest] = readIdentifier(stmt.slice(prefix[0].length));
+  const tableName = unquote(rawTable);
+  const table = tables.find((candidate) => candidate.name === tableName);
+  if (!table) return;
+  const add = /^\s*ADD\s+(?:CONSTRAINT\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w]+)\s+)?/i.exec(rest);
+  if (!add) return;
+  const body = rest.slice(add[0].length);
+  if (/^PRIMARY\s+KEY\b/i.test(body)) {
+    for (const name of parseColumnList(body)) {
+      const column = table.columns.find((candidate) => candidate.name === name);
+      if (column) Object.assign(column, { isPrimaryKey: true, isUnique: true, nullable: false });
+    }
+  } else if (/^UNIQUE\b/i.test(body)) {
+    for (const name of parseColumnList(body)) {
+      const column = table.columns.find((candidate) => candidate.name === name);
+      if (column) column.isUnique = true;
+    }
+  } else if (/^FOREIGN\s+KEY\b/i.test(body)) {
+    const relation = parseTableLevelFk(body, tableName);
+    if (relation) relations.push(relation);
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* CREATE TYPE ... AS ENUM parsing                                            */
 /* -------------------------------------------------------------------------- */
@@ -541,6 +569,8 @@ export function parseSql(sql: string): IRSchema {
       if (en) enums.push(en);
     }
   }
+
+  for (const stmt of statements) applyAlterConstraint(stmt, tables, relations);
 
   return { version: IR_VERSION, tables, enums, relations };
 }
