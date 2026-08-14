@@ -351,6 +351,7 @@ export const dbmlParser: SchemaParser = {
   name: "dbml",
   detect,
   parse,
+  watchTargets: (projectPath) => DBML_CANDIDATES.map((rel) => path.join(projectPath, rel)),
 };
 
 export default dbmlParser;

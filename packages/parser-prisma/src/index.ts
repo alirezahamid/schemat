@@ -299,6 +299,7 @@ export const prismaParser: SchemaParser = {
   name: "prisma",
   detect,
   parse,
+  watchTargets: (projectPath) => [path.join(projectPath, "prisma")],
 };
 
 export default prismaParser;

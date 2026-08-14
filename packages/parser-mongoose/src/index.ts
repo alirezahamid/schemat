@@ -596,6 +596,7 @@ export const mongooseParser: SchemaParser = {
   name: "mongoose",
   detect,
   parse,
+  watchTargets: (projectPath) => [projectPath],
 };
 
 export default mongooseParser;

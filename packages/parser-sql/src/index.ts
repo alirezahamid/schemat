@@ -616,6 +616,7 @@ export const sqlParser: SchemaParser = {
   name: "sql",
   detect,
   parse,
+  watchTargets: (projectPath) => CANDIDATE_PATHS.map((rel) => path.join(projectPath, rel)),
 };
 
 export default sqlParser;

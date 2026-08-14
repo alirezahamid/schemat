@@ -465,6 +465,14 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   return parseSchema(schema);
 }
 
-export const drizzleParser: SchemaParser = { name: "drizzle", detect, parse };
+export const drizzleParser: SchemaParser = {
+  name: "drizzle",
+  detect,
+  parse,
+  watchTargets: (projectPath) => [
+    ...COMMON_SCHEMA_FILES.map((rel) => join(projectPath, rel)),
+    ...DRIZZLE_CONFIG_FILES.map((rel) => join(projectPath, rel)),
+  ],
+};
 
 export default drizzleParser;

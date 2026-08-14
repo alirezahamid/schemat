@@ -1,6 +1,17 @@
-import path from "node:path";
 import type { IRSchema, SchemaParser } from "@schemat/core";
 import chokidar from "chokidar";
+
+export function resolveWatchTargets(parser: SchemaParser, projectPath: string): string[] {
+  try {
+    const candidates = parser.watchTargets?.(projectPath) ?? [];
+    const usable = candidates.filter(
+      (target): target is string => typeof target === "string" && target.trim().length > 0,
+    );
+    return usable.length > 0 ? [...new Set(usable)] : [projectPath];
+  } catch {
+    return [projectPath];
+  }
+}
 
 /** A watcher handle that fully tears down timers and in-flight work. */
 export interface SchemaWatcher {
@@ -20,10 +31,9 @@ export function watchSchema(
   onChange: (schema: IRSchema) => void,
   onError: (err: unknown) => void,
 ): SchemaWatcher {
-  // For the Prisma parser, watch the schema directory.
-  const watchTarget = path.join(projectPath, "prisma");
+  const watchTargets = resolveWatchTargets(parser, projectPath);
 
-  const watcher = chokidar.watch(watchTarget, {
+  const watcher = chokidar.watch(watchTargets, {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 30 },
   });
