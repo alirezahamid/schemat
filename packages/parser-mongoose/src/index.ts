@@ -41,6 +41,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -487,6 +488,7 @@ async function detect(projectPath: string): Promise<boolean> {
   // 2) Any source file containing `new mongoose.Schema(` or `new Schema(`.
   //    3) Common model files.
   const project = makeProject();
+  const warnings: string[] = [];
   try {
     project.addSourceFilesAtPaths([
       ...SOURCE_GLOBS.map((g) => join(projectPath, g)),
@@ -514,8 +516,9 @@ async function detect(projectPath: string): Promise<boolean> {
 // parse()
 // ---------------------------------------------------------------------------
 
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const project = makeProject();
+  const warnings: string[] = [];
 
   if (input.files?.length) {
     for (const f of input.files) {
@@ -529,7 +532,9 @@ async function parse(input: ParserInput): Promise<IRSchema> {
         ...IGNORE_GLOBS.map((g) => `!${join(input.projectPath, g.slice(1))}`),
       ]);
     } catch {
-      // ignore, may still have some files
+      warnings.push(
+        `Mongoose source discovery under "${input.projectPath}" failed; only already-loaded files were parsed.`,
+      );
     }
   }
 
@@ -560,6 +565,11 @@ async function parse(input: ParserInput): Promise<IRSchema> {
     }
     // If no linked schema found, still emit a table (with only _id) so the model
     // is represented.
+    if (!schema) {
+      warnings.push(
+        `Mongoose model "${m.modelName}" has no resolvable schema definition; emitted with only _id.`,
+      );
+    }
     const eff: ParsedSchema = schema ?? { varName: m.schemaVar, fields: [] };
     tables.push(buildTable(m.modelName, eff, enums, relations));
   }
@@ -585,18 +595,18 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   };
 
   // Validate against the core schema contract before returning.
-  return parseSchema(ir);
+  return { schema: parseSchema(ir), warnings };
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const mongooseParser: SchemaParser = {
+export const mongooseParser = {
   name: "mongoose",
   detect,
   parse,
   watchTargets: (projectPath) => [projectPath],
-};
+} satisfies SchemaParser;
 
 export default mongooseParser;

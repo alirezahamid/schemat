@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { IRSchema } from "@schemat/core";
+import { IRSchema, normalizeParserOutput } from "@schemat/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseSql, sqlParser } from "../src/index";
 
@@ -138,7 +138,7 @@ describe("sql parser detect + parse from disk", () => {
   });
 
   it("parses the file into valid IR", async () => {
-    const ir2 = await sqlParser.parse({ projectPath: dir });
+    const ir2 = normalizeParserOutput(await sqlParser.parse({ projectPath: dir })).schema;
     expect(() => IRSchema.parse(ir2)).not.toThrow();
     expect(ir2.tables).toHaveLength(3);
     expect(ir2.relations).toHaveLength(2);
@@ -389,5 +389,23 @@ describe("`key` / `index` as column names (B1 regression)", () => {
         toTable: "digests",
       }),
     );
+  });
+
+  it("warns for CHECK constraints and unmatched statements", async () => {
+    const d = await mkdtemp(path.join(tmpdir(), "sql-warning-"));
+    const file = path.join(d, "schema.sql");
+    await writeFile(
+      file,
+      "CREATE TABLE users (id INT, CHECK (id > 0)); CREATE VIEW active_users AS SELECT * FROM users;",
+    );
+    try {
+      const result = await sqlParser.parse({ projectPath: d, files: [file] });
+      expect("schema" in result ? result.warnings : []).toEqual([
+        'SQL CHECK constraint on table "users" is not represented; constraint skipped.',
+        'Unsupported SQL statement "CREATE VIEW active_users AS SELECT * FROM users"; statement skipped.',
+      ]);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
   });
 });

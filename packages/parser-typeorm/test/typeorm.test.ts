@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseSchema } from "@schemat/core";
+import { normalizeParserOutput, parseSchema } from "@schemat/core";
 import type { IRSchema } from "@schemat/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { typeormParser } from "../src/index";
@@ -193,7 +193,7 @@ describe("parse", () => {
   let ir: IRSchema;
 
   beforeAll(async () => {
-    ir = await typeormParser.parse({ projectPath: root });
+    ir = normalizeParserOutput(await typeormParser.parse({ projectPath: root })).schema;
   });
 
   it("produces a valid IR shape (version 1) validated by parseSchema", () => {
@@ -305,10 +305,12 @@ describe("parse", () => {
   });
 
   it("respects input.files to restrict parsed entities", async () => {
-    const only = await typeormParser.parse({
-      projectPath: root,
-      files: ["src/entities/profile.entity.ts"],
-    });
+    const only = normalizeParserOutput(
+      await typeormParser.parse({
+        projectPath: root,
+        files: ["src/entities/profile.entity.ts"],
+      }),
+    ).schema;
     expect(only.tables.map((t) => t.name)).toEqual(["profiles"]);
     expect(only.relations).toEqual([]);
   });
@@ -323,7 +325,7 @@ describe("edge cases", () => {
     const d = mkdtempSync(join(tmpdir(), "empty-"));
     writeFileSync(join(d, "index.ts"), "export const x = 1;");
     try {
-      const ir = await typeormParser.parse({ projectPath: d });
+      const ir = normalizeParserOutput(await typeormParser.parse({ projectPath: d })).schema;
       expect(ir.version).toBe(1);
       expect(ir.tables).toEqual([]);
       expect(ir.relations).toEqual([]);
@@ -348,7 +350,7 @@ export class Broken {
 `,
     );
     try {
-      const ir = await typeormParser.parse({ projectPath: d });
+      const ir = normalizeParserOutput(await typeormParser.parse({ projectPath: d })).schema;
       const t = ir.tables.find((x) => x.name === "broken");
       expect(t).toBeTruthy();
       // bare @Column() falls back to the TS property type
@@ -364,6 +366,28 @@ export class Broken {
     const d = mkdtempSync(join(tmpdir(), "nothing-"));
     try {
       expect(await typeormParser.detect(d)).toBe(false);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("warns when a relation target is not a parsed entity", async () => {
+    const d = mkdtempSync(join(tmpdir(), "typeorm-warning-"));
+    const file = join(d, "post.entity.ts");
+    writeFileSync(
+      file,
+      `import { Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+class MissingUser {}
+@Entity() class Post {
+  @PrimaryGeneratedColumn() id: number;
+  @ManyToOne(() => MissingUser) user: MissingUser;
+}`,
+    );
+    try {
+      const result = await typeormParser.parse({ projectPath: d, files: [file] });
+      expect("schema" in result ? result.warnings : []).toEqual([
+        'TypeORM relation "Post.user" targets unresolved entity "MissingUser"; relation skipped.',
+      ]);
     } finally {
       rmSync(d, { recursive: true, force: true });
     }

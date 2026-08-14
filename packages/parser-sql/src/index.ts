@@ -6,6 +6,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -448,7 +449,7 @@ interface TableResult {
 }
 
 /** Parse one `CREATE TABLE ...` statement. */
-function parseCreateTable(stmt: string): TableResult | null {
+function parseCreateTable(stmt: string, warnings: string[] = []): TableResult | null {
   const m =
     /^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?/i.exec(
       stmt,
@@ -491,7 +492,11 @@ function parseCreateTable(stmt: string): TableResult | null {
         const rel = parseTableLevelFk(item, tableName);
         if (rel) relations.push(rel);
       }
-      // CHECK: ignored
+      if (kind === "CHECK") {
+        warnings.push(
+          `SQL CHECK constraint on table "${tableName}" is not represented; constraint skipped.`,
+        );
+      }
       continue;
     }
     // Skip other non-column noise (e.g. LIKE, PRIMARY without matching above)
@@ -599,7 +604,7 @@ function parseCreateEnum(stmt: string): Enum | null {
 /* -------------------------------------------------------------------------- */
 
 /** Parse a raw SQL DDL string into the canonical IR (unvalidated shape). */
-export function parseSql(sql: string): IRSchema {
+export function parseSql(sql: string, warnings: string[] = []): IRSchema {
   const clean = stripComments(sql);
   const statements = splitStatements(clean);
 
@@ -609,7 +614,7 @@ export function parseSql(sql: string): IRSchema {
 
   for (const stmt of statements) {
     if (/^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\b/i.test(stmt)) {
-      const res = parseCreateTable(stmt);
+      const res = parseCreateTable(stmt, warnings);
       if (res) {
         tables.push(res.table);
         relations.push(...res.relations);
@@ -617,6 +622,10 @@ export function parseSql(sql: string): IRSchema {
     } else if (/^CREATE\s+TYPE\b/i.test(stmt) && /\bAS\s+ENUM\b/i.test(stmt)) {
       const en = parseCreateEnum(stmt);
       if (en) enums.push(en);
+    } else if (!/^ALTER\s+TABLE\b/i.test(stmt)) {
+      warnings.push(
+        `Unsupported SQL statement "${stmt.replace(/\s+/g, " ").trim()}"; statement skipped.`,
+      );
     }
   }
 
@@ -660,15 +669,16 @@ async function resolveFiles(input: ParserInput): Promise<string[]> {
   return [];
 }
 
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const files = await resolveFiles(input);
   if (files.length === 0) {
     throw new Error(`No SQL schema file found under ${input.projectPath}`);
   }
   const parts: IRSchema[] = [];
+  const warnings: string[] = [];
   for (const file of files) {
     const sql = await readFile(file, "utf8");
-    parts.push(parseSql(sql));
+    parts.push(parseSql(sql, warnings));
   }
   const merged: IRSchema = {
     version: IR_VERSION,
@@ -676,7 +686,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
     enums: parts.flatMap((p) => p.enums),
     relations: parts.flatMap((p) => p.relations),
   };
-  return parseSchema(merged);
+  return { schema: parseSchema(merged), warnings };
 }
 
 async function detect(projectPath: string): Promise<boolean> {

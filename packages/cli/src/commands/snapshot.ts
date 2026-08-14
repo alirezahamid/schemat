@@ -1,5 +1,5 @@
 import path from "node:path";
-import { noSchemaMessage, resolveSchema } from "../schema-source";
+import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
 
 export interface SnapshotOptions {
@@ -14,7 +14,9 @@ export interface SnapshotOptions {
 export async function runSnapshot(options: SnapshotOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const schema = await resolveSchema(projectPath);
+  const result = await resolveSchemaResult(projectPath);
+  const schema = result?.schema ?? null;
+  for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!schema) {
     console.error(await noSchemaMessage(projectPath));
     process.exitCode = 1;

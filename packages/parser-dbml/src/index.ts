@@ -9,6 +9,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -303,7 +304,7 @@ function parseDbml(src: string, file: string): DbmlDatabase {
   }
 }
 
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const file = input.files?.[0] ?? (await findDbmlFile(input.projectPath));
   if (!file) {
     throw new Error(`No .dbml file found under ${input.projectPath}`);
@@ -314,6 +315,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   const tables: Table[] = [];
   const enums: Enum[] = [];
   const relations: Relation[] = [];
+  const warnings: string[] = [];
 
   // First pass: build a qualified-name -> PK-column-set map, used to orient
   // 1:1 relations (FK owner is the non-PK side).
@@ -336,22 +338,28 @@ async function parse(input: ParserInput): Promise<IRSchema> {
     for (const e of schema.enums ?? []) enums.push(toEnum(e, qualifyName));
     schema.refs?.forEach((ref, i) => {
       const rel = toRelation(ref, i, qualifyName, primaryKeys);
-      if (rel) relations.push(rel);
+      if (rel) {
+        relations.push(rel);
+      } else {
+        warnings.push(
+          `DBML ref #${i + 1} in schema "${schema.name ?? "public"}" has unsupported endpoints; relation skipped.`,
+        );
+      }
     });
   }
 
-  return parseSchema({ version: IR_VERSION, tables, enums, relations });
+  return { schema: parseSchema({ version: IR_VERSION, tables, enums, relations }), warnings };
 }
 
 async function detect(projectPath: string): Promise<boolean> {
   return (await findDbmlFile(projectPath)) !== null;
 }
 
-export const dbmlParser: SchemaParser = {
+export const dbmlParser = {
   name: "dbml",
   detect,
   parse,
   watchTargets: (projectPath) => DBML_CANDIDATES.map((rel) => path.join(projectPath, rel)),
-};
+} satisfies SchemaParser;
 
 export default dbmlParser;

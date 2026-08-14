@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { normalizeParserOutput } from "@schemat/core";
 import type { IRSchema } from "@schemat/core";
 import mongooseParser, { mongooseParser as named } from "../src/index.ts";
 
@@ -100,7 +101,7 @@ describe("mongooseParser.parse — User model", () => {
 
   beforeAll(async () => {
     const dir = makeProjectDir({ "models/User.ts": USER_MODEL });
-    ir = await mongooseParser.parse({ projectPath: dir });
+    ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
   });
 
   it("produces a valid IR envelope", () => {
@@ -196,7 +197,7 @@ describe("mongooseParser.parse — User model", () => {
         export const Team = mongoose.model("Team", teamSchema);
       `,
     });
-    const ir2 = await mongooseParser.parse({ projectPath: dir });
+    const ir2 = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
     const team = ir2.tables.find((t) => t.name === "Team");
     const name = team.columns.find((c) => c.name === "name");
     // required: [true, "..."] -> not nullable
@@ -212,7 +213,7 @@ describe("mongooseParser.parse — User model", () => {
 describe("mongooseParser.parse — destructured Schema + model", () => {
   it("parses `new Schema(...)` and `model('Post', schema)`", async () => {
     const dir = makeProjectDir({ "models/Post.ts": POST_MODEL });
-    const ir = await mongooseParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
     const t = ir.tables.find((t) => t.name === "Post");
     expect(t).toBeDefined();
     const title = t?.columns.find((c) => c.name === "title");
@@ -229,10 +230,12 @@ describe("mongooseParser.parse — respects input.files", () => {
       "models/User.ts": USER_MODEL,
       "models/Post.ts": POST_MODEL,
     });
-    const ir = await mongooseParser.parse({
-      projectPath: dir,
-      files: ["models/Post.ts"],
-    });
+    const ir = normalizeParserOutput(
+      await mongooseParser.parse({
+        projectPath: dir,
+        files: ["models/Post.ts"],
+      }),
+    ).schema;
     expect(ir.tables.some((t) => t.name === "Post")).toBe(true);
     expect(ir.tables.some((t) => t.name === "User")).toBe(false);
   });
@@ -246,7 +249,7 @@ describe("mongooseParser.parse — fallback to schema variable name", () => {
         const widgetSchema = new Schema({ label: String });
       `,
     });
-    const ir = await mongooseParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
     // "widgetSchema" -> strip "Schema" -> "widget" -> "Widget"
     const t = ir.tables.find((t) => t.name === "Widget");
     expect(t).toBeDefined();
@@ -257,7 +260,7 @@ describe("mongooseParser.parse — fallback to schema variable name", () => {
 describe("mongooseParser.parse — edge cases", () => {
   it("handles an empty project (no schemas)", async () => {
     const dir = makeProjectDir({ "src/index.ts": "export const y = 2;\n" });
-    const ir = await mongooseParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
     expect(ir.tables).toEqual([]);
     expect(ir.enums).toEqual([]);
     expect(ir.relations).toEqual([]);
@@ -271,7 +274,7 @@ describe("mongooseParser.parse — edge cases", () => {
         export const Empty = model('Empty', s);
       `,
     });
-    const ir = await mongooseParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
     const t = ir.tables.find((t) => t.name === "Empty");
     expect(t).toBeDefined();
     // Only the implicit _id column.
@@ -290,7 +293,7 @@ describe("mongooseParser.parse — edge cases", () => {
       `,
     });
     // Should not throw; parser tolerates malformed input and returns valid IR.
-    const ir = await mongooseParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
     expect(ir.version).toBe(1);
     expect(Array.isArray(ir.tables)).toBe(true);
   });
@@ -302,7 +305,7 @@ describe("mongooseParser.parse — edge cases", () => {
         export const Ghost = mongoose.model('Ghost', someExternalSchema);
       `,
     });
-    const ir = await mongooseParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
     const t = ir.tables.find((t) => t.name === "Ghost");
     expect(t).toBeDefined();
     expect(t.columns).toHaveLength(1); // just _id

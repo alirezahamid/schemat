@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
-import type { IRSchema, SchemaParser } from "@schemat/core";
+import { normalizeParserOutput } from "@schemat/core";
+import type { IRSchema, ParserResult, SchemaParser } from "@schemat/core";
 import { dbmlParser } from "@schemat/parser-dbml";
 import { drizzleParser } from "@schemat/parser-drizzle";
 import { mikroormParser } from "@schemat/parser-mikroorm";
@@ -35,10 +36,14 @@ export async function detectParser(projectPath: string): Promise<SchemaParser | 
  * Resolve and parse the schema at `projectPath` using the first matching
  * parser. Returns null when no known schema source is present.
  */
-export async function resolveSchema(projectPath: string): Promise<IRSchema | null> {
+export async function resolveSchemaResult(projectPath: string): Promise<ParserResult | null> {
   const parser = await detectParser(projectPath);
   if (!parser) return null;
-  return parser.parse({ projectPath });
+  return normalizeParserOutput(await parser.parse({ projectPath }));
+}
+
+export async function resolveSchema(projectPath: string): Promise<IRSchema | null> {
+  return (await resolveSchemaResult(projectPath))?.schema ?? null;
 }
 
 /**
@@ -46,7 +51,7 @@ export async function resolveSchema(projectPath: string): Promise<IRSchema | nul
  * detected parser) or a single schema file (.prisma or .sql). Used by
  * `schemat diff <a> <b>` where each side can be a dir or a file.
  */
-export async function resolveSchemaFrom(target: string): Promise<IRSchema | null> {
+export async function resolveSchemaFromResult(target: string): Promise<ParserResult | null> {
   const resolved = path.resolve(process.cwd(), target);
 
   let isDir = false;
@@ -56,19 +61,23 @@ export async function resolveSchemaFrom(target: string): Promise<IRSchema | null
     return null;
   }
 
-  if (isDir) return resolveSchema(resolved);
+  if (isDir) return resolveSchemaResult(resolved);
 
   // Single file: pick the parser by extension, pointing it at the file's dir
   // with an explicit files override.
   const ext = path.extname(resolved).toLowerCase();
   if (ext === ".prisma") {
-    return prismaParser.parse({
-      projectPath: path.dirname(path.dirname(resolved)),
-      files: [resolved],
-    });
+    return normalizeParserOutput(
+      await prismaParser.parse({
+        projectPath: path.dirname(path.dirname(resolved)),
+        files: [resolved],
+      }),
+    );
   }
   if (ext === ".sql") {
-    return sqlParser.parse({ projectPath: path.dirname(resolved), files: [resolved] });
+    return normalizeParserOutput(
+      await sqlParser.parse({ projectPath: path.dirname(resolved), files: [resolved] }),
+    );
   }
   return null;
 }
@@ -136,4 +145,8 @@ export async function noSchemaMessage(projectPath: string): Promise<string> {
     `This looks like a monorepo. Found schemas in ${subdirs.length} sub-project(s) — ` +
     `point --root at one:\n${list}`
   );
+}
+
+export async function resolveSchemaFrom(target: string): Promise<IRSchema | null> {
+  return (await resolveSchemaFromResult(target))?.schema ?? null;
 }

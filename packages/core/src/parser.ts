@@ -9,6 +9,17 @@ export interface ParserInput {
   files?: string[];
 }
 
+export interface ParserResult {
+  schema: IRSchema;
+  warnings: string[];
+}
+
+export type ParserOutput = IRSchema | ParserResult;
+
+export function normalizeParserOutput(output: ParserOutput): ParserResult {
+  return "schema" in output ? output : { schema: output, warnings: [] };
+}
+
 /**
  * The modular seam. A parser turns one schema source into the canonical IR.
  *
@@ -21,8 +32,8 @@ export interface SchemaParser {
   readonly name: string;
   /** True when this source is present in the given project. */
   detect(projectPath: string): Promise<boolean>;
-  /** Parse the source into a validated {@link IRSchema}. */
-  parse(input: ParserInput): Promise<IRSchema>;
+  /** Parse source, optionally returning diagnostics alongside validated schema. */
+  parse(input: ParserInput): Promise<ParserOutput>;
   /** Files or directories whose changes can affect parse output. Optional for external parsers. */
   watchTargets?(projectPath: string): string[];
 }

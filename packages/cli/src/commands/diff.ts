@@ -1,6 +1,6 @@
 import { diff } from "@schemat/core";
 import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
-import { resolveSchemaFrom } from "../schema-source";
+import { resolveSchemaFromResult } from "../schema-source";
 
 export interface DiffOptions {
   before: string;
@@ -16,7 +16,9 @@ export interface DiffOptions {
  * two schemas differ so it can gate scripts if desired.
  */
 export async function runDiff(options: DiffOptions): Promise<void> {
-  const before = await resolveSchemaFrom(options.before);
+  const beforeResult = await resolveSchemaFromResult(options.before);
+  const before = beforeResult?.schema ?? null;
+  for (const warning of beforeResult?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!before) {
     console.error(
       `No schema found at "${options.before}" (expected a project dir, .prisma, or .sql).`,
@@ -24,7 +26,9 @@ export async function runDiff(options: DiffOptions): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const after = await resolveSchemaFrom(options.after);
+  const afterResult = await resolveSchemaFromResult(options.after);
+  const after = afterResult?.schema ?? null;
+  for (const warning of afterResult?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!after) {
     console.error(
       `No schema found at "${options.after}" (expected a project dir, .prisma, or .sql).`,

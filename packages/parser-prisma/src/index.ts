@@ -10,6 +10,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -264,7 +265,7 @@ async function readPrismaFolder(dir: string): Promise<string[]> {
 }
 
 /** Parse a Prisma schema into the canonical Schemat IR. */
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const datamodel = await loadDatamodel(input);
   const dmmf = await getDMMF({ datamodel });
   const models = dmmf.datamodel.models as unknown as DmmfModel[];
@@ -278,7 +279,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   };
 
   // Validate against the canonical IR before handing it off.
-  return parseSchema(schema);
+  return { schema: parseSchema(schema), warnings: [] };
 }
 
 async function detect(projectPath: string): Promise<boolean> {
@@ -295,11 +296,11 @@ async function detect(projectPath: string): Promise<boolean> {
   return folderFiles.length > 0;
 }
 
-export const prismaParser: SchemaParser = {
+export const prismaParser = {
   name: "prisma",
   detect,
   parse,
   watchTargets: (projectPath) => [path.join(projectPath, "prisma")],
-};
+} satisfies SchemaParser;
 
 export default prismaParser;

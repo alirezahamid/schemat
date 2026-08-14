@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { IRSchema } from "@schemat/core";
+import { IRSchema, normalizeParserOutput } from "@schemat/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { dbmlParser } from "../src/index";
 
@@ -74,7 +74,7 @@ describe("dbml parser", () => {
 
   it("parses tables, columns and comments into valid IR", async () => {
     const dir = await makeProject({ "schema.dbml": SAMPLE });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     expect(() => IRSchema.parse(ir)).not.toThrow();
     expect(ir.tables.map((t) => t.name).sort()).toEqual(["post_tags", "posts", "tags", "users"]);
 
@@ -99,7 +99,7 @@ describe("dbml parser", () => {
 
   it("parses enums", async () => {
     const dir = await makeProject({ "schema.dbml": SAMPLE });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     const byName = Object.fromEntries(ir.enums.map((e) => [e.name, e.values]));
     expect(byName.user_role).toEqual(["admin", "member"]);
     expect(byName.post_status).toEqual(["draft", "published", "archived"]);
@@ -107,7 +107,7 @@ describe("dbml parser", () => {
 
   it("extracts one-to-many relations with correct direction", async () => {
     const dir = await makeProject({ "schema.dbml": SAMPLE });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     const rel = ir.relations.find((r) => r.fromTable === "posts" && r.toTable === "users");
     expect(rel).toMatchObject({
       fromColumns: ["author_id"],
@@ -130,7 +130,7 @@ Table profiles {
 }
 `,
     });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     const rel = ir.relations.find((r) => r.fromTable === "profiles" && r.toTable === "users");
     expect(rel?.cardinality).toBe("one-to-one");
   });
@@ -147,7 +147,7 @@ Table b {
 Ref: a.id <> b.id
 `,
     });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     expect(ir.relations).toHaveLength(1);
     expect(ir.relations[0]).toMatchObject({
       cardinality: "many-to-many",
@@ -158,7 +158,7 @@ Ref: a.id <> b.id
 
   it("returns an empty schema for an empty file (no crash)", async () => {
     const dir = await makeProject({ "schema.dbml": "" });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     expect(ir.tables).toHaveLength(0);
     expect(ir.relations).toHaveLength(0);
   });
@@ -180,7 +180,7 @@ Table profiles {
 }
 `,
     });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     const rel = ir.relations[0];
     // FK owner is profiles.user_id (the unique, non-PK column), not users.id.
     expect(rel).toMatchObject({
@@ -204,7 +204,7 @@ Table public.users {
 }
 `,
     });
-    const ir = await dbmlParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await dbmlParser.parse({ projectPath: dir })).schema;
     // The auth-schema table is qualified; the public one stays bare.
     expect(ir.tables.map((t) => t.name).sort()).toEqual(["auth.users", "users"]);
     const rel = ir.relations.find((r) => r.toTable === "auth.users");

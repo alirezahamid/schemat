@@ -1,7 +1,7 @@
 import path from "node:path";
 import { diff } from "@schemat/core";
 import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
-import { noSchemaMessage, resolveSchema } from "../schema-source";
+import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 import { loadSnapshot, snapshotPath } from "../snapshot";
 
 export interface CheckOptions {
@@ -18,7 +18,10 @@ export interface CheckOptions {
 export async function runCheck(options: CheckOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const current = await resolveSchema(projectPath);
+  const result = await resolveSchemaResult(projectPath);
+  const current = result?.schema ?? null;
+  const warnings = result?.warnings ?? [];
+  for (const warning of warnings) console.error(`Warning: ${warning}`);
   if (!current) {
     console.error(await noSchemaMessage(projectPath));
     process.exitCode = 1;
@@ -41,6 +44,12 @@ export async function runCheck(options: CheckOptions): Promise<void> {
   const output =
     options.format === "markdown" ? renderDiffMarkdown(changes) : renderDiffText(changes);
   process.stdout.write(output);
+
+  // Surface parser warnings in the PR-comment payload too, not just on stderr.
+  if (warnings.length > 0 && options.format === "markdown") {
+    const list = warnings.map((w) => `- ${w}`).join("\n");
+    process.stdout.write(`\n### Parser warnings\n\n${list}\n`);
+  }
 
   if (changes.length > 0) {
     // Non-zero exit fails the CI job.

@@ -9,6 +9,7 @@ export {
   emptySchema,
   parseSchema,
 } from "./ir";
-export type { SchemaParser, ParserInput } from "./parser";
+export { normalizeParserOutput } from "./parser";
+export type { SchemaParser, ParserInput, ParserOutput, ParserResult } from "./parser";
 export { diff } from "./differ";
 export type { SchemaChange } from "./differ";
