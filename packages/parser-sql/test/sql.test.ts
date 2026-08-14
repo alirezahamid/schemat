@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { IRSchema } from "@schemat/core";
@@ -152,6 +152,53 @@ describe("sql parser detect + parse from disk", () => {
     const t = ir3.tables.find((x) => x.name === "order items");
     expect(t?.columns.map((c) => c.name).sort()).toEqual(["id", "sku"]);
     expect(t?.columns.find((c) => c.name === "id")?.isPrimaryKey).toBe(true);
+  });
+});
+
+const fixturePath = (name: string) => path.join(import.meta.dirname, "fixtures", name);
+const countFlags = (ir: ReturnType<typeof parseSql>) => ({
+  tables: ir.tables.length,
+  primaryKeyColumns: ir.tables
+    .flatMap((table) => table.columns)
+    .filter((column) => column.isPrimaryKey).length,
+  uniqueColumns: ir.tables.flatMap((table) => table.columns).filter((column) => column.isUnique)
+    .length,
+  relations: ir.relations.length,
+});
+
+describe("dump fixtures", () => {
+  it("parses a realistic PostgreSQL pg_dump fixture with two-pass ALTER constraints", async () => {
+    const ir = parseSql(await readFile(fixturePath("postgresql-pgdump.sql"), "utf8"));
+
+    expect(ir.tables.map((table) => table.name)).toEqual(["users", "posts", "events"]);
+    expect(countFlags(ir)).toEqual({
+      tables: 3,
+      primaryKeyColumns: 5,
+      uniqueColumns: 7,
+      relations: 1,
+    });
+    expect(ir.relations[0]).toMatchObject({
+      fromTable: "posts",
+      fromColumns: ["tenant_id", "author_id"],
+      toTable: "users",
+      toColumns: ["tenant_id", "id"],
+    });
+    expect(ir.tables.flatMap((table) => table.columns).map((column) => column.name)).not.toContain(
+      "missing_column",
+    );
+  });
+
+  it("parses MySQL index variants without creating phantom columns", async () => {
+    const ir = parseSql(await readFile(fixturePath("mysql-mysqldump.sql"), "utf8"));
+
+    expect(countFlags(ir)).toEqual({
+      tables: 2,
+      primaryKeyColumns: 2,
+      uniqueColumns: 4,
+      relations: 1,
+    });
+    expect(ir.tables[0]?.columns.map((column) => column.name)).toEqual(["id", "email"]);
+    expect(ir.tables[1]?.columns.map((column) => column.name)).toEqual(["id", "author_id", "slug"]);
   });
 });
 

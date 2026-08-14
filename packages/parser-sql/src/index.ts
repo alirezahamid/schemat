@@ -419,7 +419,12 @@ function parseCreateTable(stmt: string): TableResult | null {
   const uniqueColumns = new Set<string>();
 
   for (const item of items) {
-    if (INLINE_INDEX_RE.test(item)) continue;
+    if (INLINE_INDEX_RE.test(item)) {
+      if (/^\s*UNIQUE\s+(?:KEY|INDEX)\b/i.test(item)) {
+        for (const c of parseColumnList(item)) uniqueColumns.add(c);
+      }
+      continue;
+    }
     const constraintMatch = TABLE_CONSTRAINT_RE.exec(item);
     if (constraintMatch) {
       const kind = (constraintMatch[1] ?? "").toUpperCase().replace(/\s+/g, " ");
