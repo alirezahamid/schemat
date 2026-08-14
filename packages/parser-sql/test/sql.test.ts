@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { IRSchema } from "@schemat/core";
@@ -152,5 +152,242 @@ describe("sql parser detect + parse from disk", () => {
     const t = ir3.tables.find((x) => x.name === "order items");
     expect(t?.columns.map((c) => c.name).sort()).toEqual(["id", "sku"]);
     expect(t?.columns.find((c) => c.name === "id")?.isPrimaryKey).toBe(true);
+  });
+});
+
+const fixturePath = (name: string) => path.join(import.meta.dirname, "fixtures", name);
+const countFlags = (ir: ReturnType<typeof parseSql>) => ({
+  tables: ir.tables.length,
+  primaryKeyColumns: ir.tables
+    .flatMap((table) => table.columns)
+    .filter((column) => column.isPrimaryKey).length,
+  uniqueColumns: ir.tables.flatMap((table) => table.columns).filter((column) => column.isUnique)
+    .length,
+  relations: ir.relations.length,
+});
+
+describe("dump fixtures", () => {
+  it("parses a realistic PostgreSQL pg_dump fixture with two-pass ALTER constraints", async () => {
+    const ir = parseSql(await readFile(fixturePath("postgresql-pgdump.sql"), "utf8"));
+
+    expect(ir.tables.map((table) => table.name)).toEqual(["users", "posts", "events"]);
+    expect(countFlags(ir)).toEqual({
+      tables: 3,
+      primaryKeyColumns: 5,
+      uniqueColumns: 7,
+      relations: 1,
+    });
+    expect(ir.relations[0]).toMatchObject({
+      fromTable: "posts",
+      fromColumns: ["tenant_id", "author_id"],
+      toTable: "users",
+      toColumns: ["tenant_id", "id"],
+    });
+    expect(ir.tables.flatMap((table) => table.columns).map((column) => column.name)).not.toContain(
+      "missing_column",
+    );
+  });
+
+  it("parses MySQL index variants without creating phantom columns", async () => {
+    const ir = parseSql(await readFile(fixturePath("mysql-mysqldump.sql"), "utf8"));
+
+    expect(countFlags(ir)).toEqual({
+      tables: 2,
+      primaryKeyColumns: 2,
+      uniqueColumns: 4,
+      relations: 1,
+    });
+    expect(ir.tables[0]?.columns.map((column) => column.name)).toEqual(["id", "email"]);
+    expect(ir.tables[1]?.columns.map((column) => column.name)).toEqual(["id", "author_id", "slug"]);
+  });
+});
+
+describe("dump-style constraints", () => {
+  it("applies PostgreSQL ALTER TABLE constraints after CREATE TABLE", () => {
+    const ir = parseSql(`
+      CREATE TABLE public."users" (id bigint NOT NULL, email text NOT NULL);
+      CREATE TABLE public.posts (id bigint NOT NULL, author_id bigint NOT NULL);
+      ALTER TABLE ONLY public."users" ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+      ALTER TABLE public."users" ADD CONSTRAINT users_email_key UNIQUE (email);
+      ALTER TABLE ONLY public.posts ADD CONSTRAINT posts_pkey PRIMARY KEY (id);
+      ALTER TABLE public.posts ADD CONSTRAINT posts_author_fkey FOREIGN KEY (author_id)
+        REFERENCES public."users" (id);
+    `);
+    const users = ir.tables.find((table) => table.name === "users");
+    expect(users?.columns.find((column) => column.name === "id")).toMatchObject({
+      isPrimaryKey: true,
+      nullable: false,
+    });
+    expect(users?.columns.find((column) => column.name === "email")?.isUnique).toBe(true);
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "posts",
+        fromColumns: ["author_id"],
+        toTable: "users",
+        toColumns: ["id"],
+      }),
+    );
+  });
+
+  it("applies ALTER constraints and REFERENCES to fully quoted qualified tables", () => {
+    const ir = parseSql(`
+      CREATE TABLE "app"."users" (tenant_id bigint NOT NULL, id bigint NOT NULL, email text);
+      CREATE TABLE "app"."posts" (tenant_id bigint NOT NULL, id bigint NOT NULL, author_id bigint);
+      ALTER TABLE ONLY "app"."users" ADD CONSTRAINT "users_pkey" PRIMARY KEY (tenant_id, id);
+      ALTER TABLE "app"."users" ADD CONSTRAINT "users_email_key" UNIQUE (email);
+      ALTER TABLE "app"."posts" ADD CONSTRAINT "posts_author_fkey"
+        FOREIGN KEY (tenant_id, author_id) REFERENCES "app"."users" (tenant_id, id);
+    `);
+
+    expect(ir.tables.map((table) => table.name)).toEqual(["users", "posts"]);
+    expect(
+      ir.tables[0]?.columns.filter((column) => column.isPrimaryKey).map((column) => column.name),
+    ).toEqual(["tenant_id", "id"]);
+    expect(ir.tables[0]?.columns.find((column) => column.name === "email")?.isUnique).toBe(true);
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "posts",
+        fromColumns: ["tenant_id", "author_id"],
+        toTable: "users",
+        toColumns: ["tenant_id", "id"],
+      }),
+    );
+  });
+
+  it("does not emit MySQL inline KEY or INDEX entries as columns", () => {
+    const ir = parseSql(`CREATE TABLE posts (
+      id bigint NOT NULL, author_id bigint NOT NULL,
+      PRIMARY KEY (id), KEY idx_author (author_id), INDEX idx_id (id)
+    );`);
+    expect(ir.tables[0]?.columns.map((column) => column.name)).toEqual(["id", "author_id"]);
+  });
+});
+
+describe("`key` / `index` as column names (B1 regression)", () => {
+  // `key` and `index` are UNRESERVED keywords in PostgreSQL and are legal column
+  // names. Detection of MySQL inline indexes must be shape-aware, not
+  // first-token-aware, or these real columns are silently dropped.
+
+  it("keeps a PostgreSQL column named `key` with its type and flags", () => {
+    const ir = parseSql(`CREATE TABLE digests (
+      id uuid NOT NULL,
+      key text NOT NULL,
+      time_zone text NOT NULL
+    );`);
+    const digests = ir.tables.find((table) => table.name === "digests");
+    expect(digests?.columns.map((column) => column.name)).toEqual(["id", "key", "time_zone"]);
+    expect(digests?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+  });
+
+  it("keeps a `key` column declared with a parameterised type", () => {
+    const ir = parseSql(`CREATE TABLE tutorials (
+      id uuid NOT NULL,
+      key character varying(255) NOT NULL,
+      current_step integer DEFAULT 1 NOT NULL
+    );`);
+    const tutorials = ir.tables.find((table) => table.name === "tutorials");
+    expect(tutorials?.columns.map((column) => column.name)).toEqual(["id", "key", "current_step"]);
+    expect(tutorials?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+  });
+
+  it("keeps a PostgreSQL column named `index` with its type and flags", () => {
+    const ir = parseSql(`CREATE TABLE steps (
+      id uuid NOT NULL,
+      index integer DEFAULT 0 NOT NULL,
+      label text
+    );`);
+    const steps = ir.tables.find((table) => table.name === "steps");
+    expect(steps?.columns.map((column) => column.name)).toEqual(["id", "index", "label"]);
+    expect(steps?.columns.find((column) => column.name === "index")).toMatchObject({
+      type: "int",
+      nullable: false,
+    });
+    expect(steps?.columns.find((column) => column.name === "label")?.nullable).toBe(true);
+  });
+
+  it("keeps the relation from a `key` column carrying an inline REFERENCES", () => {
+    const ir = parseSql(`CREATE TABLE digests (id uuid NOT NULL PRIMARY KEY);
+      CREATE TABLE locators (
+        id uuid NOT NULL,
+        key text NOT NULL REFERENCES digests (id)
+      );`);
+    const locators = ir.tables.find((table) => table.name === "locators");
+    expect(locators?.columns.map((column) => column.name)).toEqual(["id", "key"]);
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "locators",
+        fromColumns: ["key"],
+        toTable: "digests",
+        toColumns: ["id"],
+      }),
+    );
+  });
+
+  it("still treats every MySQL index variant as an index, with no phantom columns", () => {
+    const ir = parseSql(`CREATE TABLE \`posts\` (
+      \`id\` bigint NOT NULL,
+      \`email\` varchar(255) NOT NULL,
+      \`author_id\` bigint NOT NULL,
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`posts_email_key\` (\`email\`),
+      KEY \`idx_author\` (\`author_id\`),
+      INDEX \`idx_id\` (\`id\`),
+      FULLTEXT KEY \`posts_email_fulltext\` (\`email\`),
+      SPATIAL INDEX \`posts_spatial\` (\`id\`),
+      KEY \`idx_using\` USING BTREE (\`author_id\`),
+      KEY (\`email\`)
+    );`);
+    const posts = ir.tables.find((table) => table.name === "posts");
+    expect(posts?.columns.map((column) => column.name)).toEqual(["id", "email", "author_id"]);
+    expect(posts?.columns.find((column) => column.name === "email")?.isUnique).toBe(true);
+    expect(posts?.columns.find((column) => column.name === "id")?.isPrimaryKey).toBe(true);
+  });
+
+  it("parses a dump fixture where `key` and `index` are real columns", async () => {
+    const ir = parseSql(await readFile(fixturePath("postgresql-key-columns.sql"), "utf8"));
+
+    expect(ir.tables.map((table) => table.name)).toEqual(["digests", "tutorials", "post_locators"]);
+
+    const digests = ir.tables.find((table) => table.name === "digests");
+    expect(digests?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+
+    const tutorials = ir.tables.find((table) => table.name === "tutorials");
+    expect(tutorials?.columns.find((column) => column.name === "key")).toMatchObject({
+      type: "string",
+      nullable: false,
+    });
+
+    const locators = ir.tables.find((table) => table.name === "post_locators");
+    expect(locators?.columns.map((column) => column.name)).toEqual([
+      "id",
+      "post_id",
+      "key",
+      "index",
+      "scope",
+    ]);
+    expect(locators?.columns.find((column) => column.name === "index")).toMatchObject({
+      type: "int",
+      nullable: false,
+    });
+    // ALTER ... UNIQUE (key, index) must resolve against those real columns.
+    expect(locators?.columns.find((column) => column.name === "key")?.isUnique).toBe(true);
+    expect(locators?.columns.find((column) => column.name === "index")?.isUnique).toBe(true);
+    // The inline REFERENCES on the `key` column must survive.
+    expect(ir.relations).toContainEqual(
+      expect.objectContaining({
+        fromTable: "post_locators",
+        fromColumns: ["key"],
+        toTable: "digests",
+      }),
+    );
   });
 });

@@ -10,6 +10,7 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsup",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts dev --root ../../examples/blog"
   },
@@ -33,7 +34,8 @@
     "@types/ws": "8.5.13",
     "tsup": "8.3.5",
     "tsx": "4.19.2",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
   },
   "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
   "homepage": "https://github.com/alirezahamid/schemat#readme",

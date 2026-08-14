@@ -27,3 +27,6 @@ examples/**/node_modules/
 .schemat-cache/
 .github/assets/bug-repro.png
 .hermes/
+
+# scratch output from the REAL_WORLD_EVIDENCE.md reproduction steps
+packages/parser-sql/.evidence/

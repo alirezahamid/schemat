@@ -575,6 +575,7 @@ export const typeormParser: SchemaParser = {
   name: "typeorm",
   detect,
   parse,
+  watchTargets: (projectPath) => [projectPath],
 };
 
 export default typeormParser;

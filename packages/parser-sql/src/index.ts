@@ -265,42 +265,88 @@ function splitTopLevel(body: string): string[] {
 
 const TABLE_CONSTRAINT_RE =
   /^\s*(?:CONSTRAINT\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w]+)\s+)?(PRIMARY\s+KEY|UNIQUE|FOREIGN\s+KEY|CHECK)\b/i;
+/** Leading `KEY` / `INDEX` token, with the MySQL-only index qualifiers. */
+const INDEX_PREFIX_RE = /^\s*(?:(UNIQUE|FULLTEXT|SPATIAL)\s+)?(?:KEY|INDEX)\b/i;
+/** Parenthesised content that is a type length/precision, e.g. `(255)`, `(3, 1)`. */
+const TYPE_ARGS_RE = /^\s*\d+\s*(?:,\s*\d+\s*)*$/;
+/** Clauses that can only follow a column's type, never an index column list. */
+const COLUMN_TAIL_RE =
+  /^(?:NOT\s+NULL|NULL|DEFAULT|PRIMARY\s+KEY|UNIQUE|REFERENCES|CHECK|COLLATE|GENERATED|ARRAY|\[\s*\])\b/i;
+/** Type names that may carry a parenthesised argument, e.g. `key geometry(Point,4326)`. */
+const PARAMETERIZED_TYPE_RE =
+  /^(?:VARCHAR|CHAR|CHARACTER|NVARCHAR|NCHAR|VARBINARY|BINARY|BIT|TEXT|NUMERIC|DECIMAL|FLOAT|DOUBLE|REAL|INT|INTEGER|BIGINT|SMALLINT|TINYINT|MEDIUMINT|TIME|TIMESTAMP|TIMESTAMPTZ|DATETIME|INTERVAL|GEOMETRY|GEOGRAPHY|ENUM|SET|VECTOR)$/i;
 
-/** Read a single identifier from the start of a string; returns [ident, rest].
- *  Handles quoted forms ("x" / `x` / [x]), plain dotted names (a.b.c), and a
- *  schema-qualified quoted tail (e.g. public."users"). */
+/**
+ * Decide whether a `CREATE TABLE` item is a MySQL inline index definition.
+ *
+ * This is deliberately SHAPE-aware rather than first-token-aware: `key` and
+ * `index` are unreserved keywords in PostgreSQL and are perfectly legal column
+ * names, so `key text NOT NULL` is a COLUMN while `KEY idx (col)` is an INDEX.
+ * An item only counts as an index when the `KEY`/`INDEX` token is followed by
+ * an optional index name, an optional `USING <type>`, and then a parenthesised
+ * column list.
+ */
+function isInlineIndexDefinition(item: string): boolean {
+  const prefix = INDEX_PREFIX_RE.exec(item);
+  if (!prefix) return false;
+
+  let rest = item.slice(prefix[0].length).trimStart();
+
+  // `KEY (col)` / `UNIQUE KEY (col)` - unnamed index, column list follows.
+  if (rest.startsWith("(")) return true;
+
+  // Optional index name.
+  const [name, afterName] = readIdentifier(rest);
+  // `UNIQUE KEY` / `FULLTEXT` / `SPATIAL` qualifiers never introduce a column.
+  if (!name) return Boolean(prefix[1]);
+  rest = afterName.trimStart();
+
+  // MySQL allows `KEY idx USING BTREE (col)`.
+  const using = /^USING\s+\w+/i.exec(rest);
+  if (using) return rest.slice(using[0].length).trimStart().startsWith("(");
+
+  // No parenthesised list => this is `key <type> ...`, i.e. a column.
+  if (!rest.startsWith("(")) return false;
+
+  // Ambiguous shape: `KEY idx (col)` (index) vs `key varchar(255)` (column).
+  const close = matchParen(rest, 0);
+  const inner = close < 0 ? rest.slice(1) : rest.slice(1, close);
+  // A length/precision argument means the preceding token was a type.
+  if (TYPE_ARGS_RE.test(inner)) return false;
+  // A known parameterised type name means the preceding token was a type.
+  if (PARAMETERIZED_TYPE_RE.test(name.replace(/^["`[]|["`\]]$/g, ""))) return false;
+  // A column-only tail (e.g. `index geometry(Point,4326) NOT NULL`) likewise.
+  const tail = close < 0 ? "" : rest.slice(close + 1).trimStart();
+  if (COLUMN_TAIL_RE.test(tail)) return false;
+
+  return true;
+}
+
+/** Read a dotted identifier from the start of a string; returns [ident, rest].
+ * Handles quoted ("x" / `x` / [x]) and unquoted segments in any combination. */
 function readIdentifier(s: string): [string, string] {
-  let t = s.trimStart();
-  let prefix = "";
+  const t = s.trimStart();
+  let end = 0;
 
-  // Consume any dotted plain-identifier prefix followed by a dot, so a
-  // schema-qualified name like public."users" or db.public.tbl parses whole.
-  // Loop while we see `<word>.` and the char after the dot starts a new segment.
-  for (;;) {
-    const seg = /^([A-Za-z_]\w*)\./.exec(t);
-    if (!seg) break;
-    prefix += seg[0];
-    t = t.slice(seg[0].length);
-  }
+  const readSegment = (start: number): number => {
+    const opener = t[start];
+    if (opener === '"' || opener === "`" || opener === "[") {
+      const closer = opener === "[" ? "]" : opener;
+      const close = t.indexOf(closer, start + 1);
+      return close < 0 ? t.length : close + 1;
+    }
+    const match = /^[A-Za-z_]\w*/.exec(t.slice(start));
+    return match ? start + match[0].length : start;
+  };
 
-  if (t.startsWith('"')) {
-    const end = t.indexOf('"', 1);
-    if (end < 0) return [prefix + t, ""];
-    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
+  end = readSegment(0);
+  if (end === 0) return ["", t];
+  while (t[end] === ".") {
+    const segmentEnd = readSegment(end + 1);
+    if (segmentEnd === end + 1) break;
+    end = segmentEnd;
   }
-  if (t.startsWith("`")) {
-    const end = t.indexOf("`", 1);
-    if (end < 0) return [prefix + t, ""];
-    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
-  }
-  if (t.startsWith("[")) {
-    const end = t.indexOf("]", 1);
-    if (end < 0) return [prefix + t, ""];
-    return [prefix + t.slice(0, end + 1), t.slice(end + 1)];
-  }
-  const m = /^[\w.]+/.exec(t);
-  if (m) return [prefix + m[0], t.slice(m[0].length)];
-  return [prefix, t];
+  return [t.slice(0, end), t.slice(end)];
 }
 
 /** Parenthesized column list, e.g. `(a, "b", c)` -> ["a","b","c"]. */
@@ -428,6 +474,12 @@ function parseCreateTable(stmt: string): TableResult | null {
   const uniqueColumns = new Set<string>();
 
   for (const item of items) {
+    if (isInlineIndexDefinition(item)) {
+      if (/^\s*UNIQUE\s+(?:KEY|INDEX)\b/i.test(item)) {
+        for (const c of parseColumnList(item)) uniqueColumns.add(c);
+      }
+      continue;
+    }
     const constraintMatch = TABLE_CONSTRAINT_RE.exec(item);
     if (constraintMatch) {
       const kind = (constraintMatch[1] ?? "").toUpperCase().replace(/\s+/g, " ");
@@ -500,6 +552,32 @@ function makeRelation(fromTable: string, fromColumn: string, fk: ParsedInlineFk)
   };
 }
 
+function applyAlterConstraint(stmt: string, tables: Table[], relations: Relation[]): void {
+  const prefix = /^ALTER\s+TABLE\s+(?:ONLY\s+)?/i.exec(stmt);
+  if (!prefix) return;
+  const [rawTable, rest] = readIdentifier(stmt.slice(prefix[0].length));
+  const tableName = unquote(rawTable);
+  const table = tables.find((candidate) => candidate.name === tableName);
+  if (!table) return;
+  const add = /^\s*ADD\s+(?:CONSTRAINT\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w]+)\s+)?/i.exec(rest);
+  if (!add) return;
+  const body = rest.slice(add[0].length);
+  if (/^PRIMARY\s+KEY\b/i.test(body)) {
+    for (const name of parseColumnList(body)) {
+      const column = table.columns.find((candidate) => candidate.name === name);
+      if (column) Object.assign(column, { isPrimaryKey: true, isUnique: true, nullable: false });
+    }
+  } else if (/^UNIQUE\b/i.test(body)) {
+    for (const name of parseColumnList(body)) {
+      const column = table.columns.find((candidate) => candidate.name === name);
+      if (column) column.isUnique = true;
+    }
+  } else if (/^FOREIGN\s+KEY\b/i.test(body)) {
+    const relation = parseTableLevelFk(body, tableName);
+    if (relation) relations.push(relation);
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* CREATE TYPE ... AS ENUM parsing                                            */
 /* -------------------------------------------------------------------------- */
@@ -541,6 +619,8 @@ export function parseSql(sql: string): IRSchema {
       if (en) enums.push(en);
     }
   }
+
+  for (const stmt of statements) applyAlterConstraint(stmt, tables, relations);
 
   return { version: IR_VERSION, tables, enums, relations };
 }
@@ -616,6 +696,7 @@ export const sqlParser: SchemaParser = {
   name: "sql",
   detect,
   parse,
+  watchTargets: (projectPath) => CANDIDATE_PATHS.map((rel) => path.join(projectPath, rel)),
 };
 
 export default sqlParser;

@@ -23,4 +23,6 @@ export interface SchemaParser {
   detect(projectPath: string): Promise<boolean>;
   /** Parse the source into a validated {@link IRSchema}. */
   parse(input: ParserInput): Promise<IRSchema>;
+  /** Files or directories whose changes can affect parse output. Optional for external parsers. */
+  watchTargets?(projectPath: string): string[];
 }

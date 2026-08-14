@@ -493,6 +493,11 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   return parseSchema(schema);
 }
 
-export const mikroormParser: SchemaParser = { name: "mikroorm", detect, parse };
+export const mikroormParser: SchemaParser = {
+  name: "mikroorm",
+  detect,
+  parse,
+  watchTargets: (projectPath) => [projectPath],
+};
 
 export default mikroormParser;
