@@ -146,18 +146,58 @@ describe("parse", () => {
     expect(email?.nullable).toBe(false);
     expect(email?.isUnique).toBe(true);
     expect(email?.type).toBe("string");
+    expect(email?.rawType).toMatch(/STRING/);
+    expect(email?.isList).toBe(false);
 
     const id = users?.columns.find((c) => c.name === "id");
     expect(id?.isPrimaryKey).toBe(true);
     expect(id?.nullable).toBe(false);
+    expect(id?.type).toBe("int");
   });
 
-  it("captures ENUM values", async () => {
+  it("captures ENUM values with closed type", async () => {
     const result = await sequelizeParser.parse({ projectPath: root });
     const schema = "schema" in result ? result.schema : result;
     expect(schema.enums.length).toBeGreaterThan(0);
     const e = schema.enums.find((x) => x.values.includes("active"));
     expect(e?.values).toEqual(["active", "banned"]);
+    const status = schema.tables
+      .find((t) => t.name === "users")
+      ?.columns.find((c) => c.name === "status");
+    expect(status?.type).toBe("enum");
+    expect(status?.rawType).toBe(e?.name);
+  });
+
+  it("maps ARRAY element type and sets isList", async () => {
+    const d = mkdtempSync(join(tmpdir(), "sequelize-array-"));
+    mkdirSync(join(d, "src"), { recursive: true });
+    writeFileSync(
+      join(d, "src", "tags.ts"),
+      `
+import { DataTypes, Sequelize } from 'sequelize';
+export function defineTag(sequelize: Sequelize) {
+  return sequelize.define('TagBag', {
+    id: { type: DataTypes.INTEGER, primaryKey: true },
+    labels: { type: DataTypes.ARRAY(DataTypes.STRING) },
+  }, { tableName: 'tag_bags' });
+}
+`,
+    );
+    writeFileSync(
+      join(d, "package.json"),
+      JSON.stringify({ name: "fixture", dependencies: { sequelize: "^6.0.0" } }),
+    );
+    try {
+      const result = await sequelizeParser.parse({ projectPath: d });
+      const schema = "schema" in result ? result.schema : result;
+      parseSchema(schema);
+      const labels = schema.tables[0]?.columns.find((c) => c.name === "labels");
+      expect(labels?.type).toBe("string");
+      expect(labels?.isList).toBe(true);
+      expect(labels?.rawType).toMatch(/ARRAY/);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
   });
 
   it("emits belongsTo and belongsToMany relations", async () => {

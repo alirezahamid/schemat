@@ -14,8 +14,9 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 import type {
+  CanonicalType,
   Cardinality,
   Column,
   Enum,
@@ -186,8 +187,23 @@ function asObjectLiteral(node: Node | undefined): ObjectLiteralExpression | unde
 // Type mapping
 // ---------------------------------------------------------------------------
 
-function mapDataType(typeText: string): { type: string; enumValues?: string[] } {
+interface MappedSequelizeType {
+  /** Dialect token fed to mapToCanonicalType (never free-form into Column.type). */
+  mapKey: string;
+  /** Source display string stored on Column.rawType. */
+  rawType: string;
+  isList: boolean;
+  enumValues?: string[];
+}
+
+/**
+ * Parse a Sequelize DataTypes / Sequelize.* type expression.
+ * Returns a mapKey for {@link mapToCanonicalType}, the raw source text, and
+ * list/enum metadata. ARRAY(...) sets isList and maps the element type.
+ */
+function mapDataType(typeText: string): MappedSequelizeType {
   const t = typeText.replace(/\s+/g, " ").trim();
+  const rawType = t || "unknown";
 
   // DataTypes.ENUM('a','b') / Sequelize.ENUM('a','b')
   const enumM = t.match(/(?:DataTypes|Sequelize)\.ENUM\s*\(([\s\S]*)\)\s*$/);
@@ -196,60 +212,45 @@ function mapDataType(typeText: string): { type: string; enumValues?: string[] } 
     const values = [...raw.matchAll(/(['"])(.*?)\1/g)]
       .map((m) => m[2])
       .filter((v): v is string => typeof v === "string");
-    return { type: "enum", enumValues: values };
+    return { mapKey: "enum", rawType, isList: false, enumValues: values };
+  }
+
+  // DataTypes.ARRAY(DataTypes.STRING) / Sequelize.ARRAY(...)
+  const arrM = t.match(/(?:DataTypes|Sequelize)\.ARRAY\s*\(([\s\S]*)\)\s*$/);
+  if (arrM?.[1] !== undefined) {
+    const inner = mapDataType(arrM[1].trim());
+    return {
+      mapKey: inner.mapKey,
+      rawType,
+      isList: true,
+      enumValues: inner.enumValues,
+    };
   }
 
   // DataTypes.STRING(255) / INTEGER / etc.
   const dt = t.match(/(?:DataTypes|Sequelize)\.([A-Z_]+)(?:\s*\(([\s\S]*)\))?/);
   if (dt?.[1]) {
     const base = dt[1].toUpperCase();
-    switch (base) {
-      case "STRING":
-      case "CHAR":
-      case "TEXT":
-      case "CITEXT":
-        return { type: base === "TEXT" ? "text" : "string" };
-      case "INTEGER":
-      case "BIGINT":
-      case "SMALLINT":
-      case "TINYINT":
-      case "MEDIUMINT":
-        return { type: "int" };
-      case "FLOAT":
-      case "REAL":
-      case "DOUBLE":
-      case "DOUBLEPRECISION":
-      case "DECIMAL":
-      case "NUMERIC":
-        return { type: base === "DECIMAL" || base === "NUMERIC" ? "decimal" : "float" };
-      case "BOOLEAN":
-        return { type: "boolean" };
-      case "DATE":
-      case "DATEONLY":
-        return { type: base === "DATEONLY" ? "date" : "datetime" };
-      case "TIME":
-        return { type: "time" };
-      case "UUID":
-      case "UUIDV1":
-      case "UUIDV4":
-        return { type: "uuid" };
-      case "JSON":
-      case "JSONB":
-        return { type: base.toLowerCase() };
-      case "BLOB":
-        return { type: "blob" };
-      case "ENUM":
-        return { type: "enum", enumValues: [] };
-      case "ARRAY":
-        return { type: "array" };
-      default:
-        return { type: base.toLowerCase() };
+    // mapKey is the Sequelize base name; mapToCanonicalType lowercases + maps.
+    // Special cases that need a friendlier key for the shared mapper:
+    let mapKey = base.toLowerCase();
+    if (base === "DOUBLEPRECISION") mapKey = "double precision";
+    if (base === "DATEONLY") mapKey = "date";
+    if (base === "DATE") mapKey = "datetime";
+    if (base === "UUIDV1" || base === "UUIDV4") mapKey = "uuid";
+    if (base === "ENUM") {
+      return { mapKey: "enum", rawType, isList: false, enumValues: [] };
     }
+    if (base === "ARRAY") {
+      // Bare ARRAY without element arg — treat as list of unknown
+      return { mapKey: "unknown", rawType, isList: true };
+    }
+    return { mapKey, rawType, isList: false };
   }
 
-  // Bare identifier fallback
-  const bare = t.split(".").pop() ?? t;
-  return { type: bare || "unknown" };
+  // Bare identifier fallback (e.g. imported alias)
+  const bare = (t.split(".").pop() ?? t).trim();
+  return { mapKey: bare || "unknown", rawType, isList: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -307,11 +308,14 @@ function parseAttribute(
 
   const colName = propString(opts, "field") ?? name;
 
-  let type = mapped.type;
+  let type: CanonicalType = mapToCanonicalType(mapped.mapKey);
+  let rawType = mapped.rawType;
   let enumDef: Enum | undefined;
-  if (mapped.enumValues) {
+  // Enum: closed type "enum"; rawType keeps the generated enum name (display).
+  if (mapped.enumValues !== undefined) {
     const enumName = `${modelKey}_${colName}_enum`;
-    type = enumName;
+    type = "enum";
+    rawType = enumName;
     enumDef = { name: enumName, values: mapped.enumValues };
   }
 
@@ -322,9 +326,11 @@ function parseAttribute(
     column: {
       name: colName,
       type,
+      rawType,
       nullable,
       isPrimaryKey,
       isUnique: unique || isPrimaryKey,
+      isList: mapped.isList,
       default: defaultVal,
       comment: propString(opts, "comment") ?? null,
     },

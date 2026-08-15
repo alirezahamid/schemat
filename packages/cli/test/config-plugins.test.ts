@@ -46,7 +46,7 @@ export default {
   name: "fake-plugin",
   async detect() { return true; },
   async parse() {
-    return { version: 1, tables: [{ name: "t", columns: [], comment: null }], enums: [], relations: [] };
+    return { version: 2, tables: [{ name: "t", columns: [], comment: null }], enums: [], relations: [] };
   },
 };
 `,
