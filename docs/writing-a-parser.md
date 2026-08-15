@@ -9,7 +9,12 @@ loaded via config — no monorepo PR required.
 Implement `@schemat/core`'s `SchemaParser`:
 
 ```ts
-import type { ParserInput, ParserOutput, SchemaParser } from "@schemat/core";
+import {
+  IR_VERSION,
+  type ParserInput,
+  type ParserOutput,
+  type SchemaParser,
+} from "@schemat/core";
 
 export const myParser: SchemaParser = {
   name: "my-source", // short stable id
@@ -18,8 +23,8 @@ export const myParser: SchemaParser = {
     return false;
   },
   async parse(input: ParserInput): Promise<ParserOutput> {
-    // return IRSchema, or { schema, warnings }
-    return { version: 1, tables: [], enums: [], relations: [] };
+    // return IRSchema (v2), or { schema, warnings }
+    return { version: IR_VERSION, tables: [], enums: [], relations: [] };
   },
   // optional: paths whose changes should trigger re-parse in `schemat dev`
   watchTargets(projectPath: string): string[] {
@@ -34,6 +39,10 @@ Rules:
 
 - **Static only.** Do not connect to a database, import the app, or execute user
   code. Read source files and produce IR.
+- **IR v2.** Schema `version` is `2` (`IR_VERSION`). Every column needs closed
+  canonical `type`, plus `rawType` (source display string) and `isList`. Map
+  dialect types with `mapToCanonicalType()` from `@schemat/core`. See
+  [docs/ir-v2-migration.md](./ir-v2-migration.md).
 - **Validate.** Hand the object through `parseSchema(...)` from `@schemat/core`
   before returning so bad IR fails fast.
 - **Warnings, not throws** for recoverable gaps (unsupported constructs). Put
