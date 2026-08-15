@@ -21,6 +21,7 @@
     "@schemat/parser-mikroorm": "workspace:*",
     "@schemat/parser-mongoose": "workspace:*",
     "@schemat/parser-prisma": "workspace:*",
+    "@schemat/parser-sequelize": "workspace:*",
     "@schemat/parser-sql": "workspace:*",
     "@schemat/parser-typeorm": "workspace:*",
     "@schemat/render": "workspace:*",

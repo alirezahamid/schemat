@@ -7,36 +7,64 @@ import { drizzleParser } from "@schemat/parser-drizzle";
 import { mikroormParser } from "@schemat/parser-mikroorm";
 import { mongooseParser } from "@schemat/parser-mongoose";
 import { prismaParser } from "@schemat/parser-prisma";
+import { sequelizeParser } from "@schemat/parser-sequelize";
 import { sqlParser } from "@schemat/parser-sql";
 import { typeormParser } from "@schemat/parser-typeorm";
-import { loadConfig } from "./config";
+import { loadConfiguredParsers } from "./config";
 
 /**
- * All parsers Schemat knows about, in auto-detection priority order.
- * Specific sources first; SQL last — its root `*.sql` glob is the weakest signal
- * and must not shadow Drizzle/TypeORM/etc. when a stray seed.sql sits at root.
- * Adding a source is a new entry here — nothing else in the CLI changes.
+ * Built-in parsers in auto-detection priority order (specific → weak).
+ * SQL is last: its root `*.sql` glob is the weakest signal and must not shadow
+ * Drizzle/TypeORM/etc. when a stray seed.sql sits at the project root.
+ * Community parsers can be added via `parsers` in schemat.config.json.
  */
-const PARSERS: readonly SchemaParser[] = [
+const BUILTIN_PARSERS: readonly SchemaParser[] = [
   prismaParser,
   drizzleParser,
   typeormParser,
   mikroormParser,
   mongooseParser,
+  sequelizeParser,
   dbmlParser,
   sqlParser,
 ];
 
-/** Stable parser ids accepted by `--source` / config `source`. */
-export const PARSER_NAMES: readonly string[] = PARSERS.map((p) => p.name);
+/** Stable built-in parser ids accepted by `--source` / config `source`. */
+export const PARSER_NAMES: readonly string[] = BUILTIN_PARSERS.map((p) => p.name);
 
 export function getParserByName(name: string): SchemaParser | undefined {
-  return PARSERS.find((p) => p.name === name);
+  return BUILTIN_PARSERS.find((p) => p.name === name);
+}
+
+/** Cache of projectPath -> resolved parser list (built-ins + config plugins). */
+const parserListCache = new Map<string, SchemaParser[]>();
+
+async function parsersFor(projectPath: string): Promise<SchemaParser[]> {
+  const key = path.resolve(projectPath);
+  const cached = parserListCache.get(key);
+  if (cached) return cached;
+
+  const { parsers: plugins, errors } = await loadConfiguredParsers(key);
+  for (const e of errors) console.error(`Warning: ${e}`);
+
+  // Plugins first so a local override can win detection, then built-ins.
+  // Dedup by name (plugin wins).
+  const pluginNames = new Set(plugins.map((p) => p.name));
+  const ordered = [...plugins, ...BUILTIN_PARSERS.filter((p) => !pluginNames.has(p.name))];
+
+  parserListCache.set(key, ordered);
+  return ordered;
+}
+
+/** Test helper: drop cached parser lists. */
+export function clearParserCache(): void {
+  parserListCache.clear();
 }
 
 /** The first parser that detects a schema under `projectPath`, or null. */
 export async function detectParser(projectPath: string): Promise<SchemaParser | null> {
-  for (const parser of PARSERS) {
+  const parsers = await parsersFor(projectPath);
+  for (const parser of parsers) {
     if (await parser.detect(projectPath)) return parser;
   }
   return null;
@@ -45,29 +73,33 @@ export async function detectParser(projectPath: string): Promise<SchemaParser | 
 /**
  * Resolve which parser to use.
  * Precedence: explicit `sourceOverride` (CLI `--source`) > config file `source`
- * > first-match auto-detect.
+ * > first-match auto-detect (plugins + built-ins).
  */
 export async function resolveParser(
   projectPath: string,
   sourceOverride?: string,
 ): Promise<SchemaParser | null> {
+  const parsers = await parsersFor(projectPath);
+
   if (sourceOverride) {
-    const parser = getParserByName(sourceOverride);
-    if (!parser) {
-      throw new Error(`Unknown source "${sourceOverride}". Supported: ${PARSER_NAMES.join(", ")}.`);
-    }
-    return parser;
+    const fromList = parsers.find((p) => p.name === sourceOverride);
+    if (fromList) return fromList;
+    const builtin = getParserByName(sourceOverride);
+    if (builtin) return builtin;
+    throw new Error(
+      `Unknown source "${sourceOverride}". Supported: ${PARSER_NAMES.join(", ")} (plus any config plugins).`,
+    );
   }
 
-  const config = await loadConfig(projectPath);
-  if (config?.source) {
-    const parser = getParserByName(config.source);
-    if (!parser) {
-      throw new Error(
-        `Unknown source "${config.source}" in config. Supported: ${PARSER_NAMES.join(", ")}.`,
-      );
-    }
-    return parser;
+  const { config } = await loadConfiguredParsers(projectPath);
+  if (config.source) {
+    const fromList = parsers.find((p) => p.name === config.source);
+    if (fromList) return fromList;
+    const builtin = getParserByName(config.source);
+    if (builtin) return builtin;
+    throw new Error(
+      `Unknown source "${config.source}" in config. Supported: ${PARSER_NAMES.join(", ")} (plus any config plugins).`,
+    );
   }
 
   return detectParser(projectPath);
@@ -139,8 +171,10 @@ export const SUPPORTED_SOURCES =
   "TypeORM (*.entity.ts / @Entity classes), " +
   "MikroORM (@Entity classes importing @mikro-orm/core), " +
   "Mongoose (models with new Schema({...})), " +
+  "Sequelize (Model.init / sequelize.define), " +
   "DBML (<root>/schema.dbml), " +
-  "or SQL (<root>/schema.sql)";
+  "SQL (<root>/schema.sql), " +
+  "or a custom parser listed in schemat.config.json";
 
 /**
  * Scan a monorepo for schemas one level down under common workspace dirs
@@ -200,4 +234,9 @@ export async function noSchemaMessage(projectPath: string): Promise<string> {
 
 export async function resolveSchemaFrom(target: string, source?: string): Promise<IRSchema | null> {
   return (await resolveSchemaFromResult(target, source))?.schema ?? null;
+}
+
+/** Built-in parser list (no config plugins). Useful for docs/tests. */
+export function listBuiltinParsers(): readonly SchemaParser[] {
+  return BUILTIN_PARSERS;
 }
