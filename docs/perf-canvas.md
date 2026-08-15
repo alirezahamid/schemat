@@ -34,7 +34,7 @@ From `SCHEMAT_PERF_WARM=1 pnpm perf:large-schema` on the measurement host (re-ru
 
 | Metric | Value | Notes |
 | --- | --- | --- |
-| Environment | Node v20.20.2, linux arm64, 4 CPUs | agent droplet; engines want Node ≥22 |
+| Environment | Node v20.20.2, linux arm64, 4 CPUs | measurement host; engines want Node ≥22 |
 | Tables / relations | **125 / 167** | hub + 120 entities + 4 link tables |
 | parseMs | **75.6** | SQL → IR |
 | graphMs | **0.4** | IR → ELK node/edge list |

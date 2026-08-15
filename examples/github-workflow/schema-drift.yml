@@ -29,7 +29,9 @@ jobs:
         with:
           node-version: 22
       - name: Check schema drift
-        uses: alirezahamid/schemat@v0
+        # Pin a tag or SHA once one exists; `v0` is published with the next
+        # release. `@main` tracks the default branch in the meantime.
+        uses: alirezahamid/schemat@main
         with:
           root: "."
           # version: latest

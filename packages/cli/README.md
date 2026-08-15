@@ -14,7 +14,9 @@ npx @schemat/cli dev
 ## Commands
 
 All commands take `-r, --root <dir>` (defaults to `.`). Point it at a project
-containing `prisma/schema.prisma` (or a SQL schema).
+whose schema Schemat can read: Prisma, Drizzle, TypeORM, MikroORM, Mongoose,
+Sequelize, DBML, or SQL DDL. The source is auto-detected; `-s, --source
+<parser>` forces one when detection is wrong or ambiguous.
 
 ### `schemat dev`
 

@@ -9,10 +9,20 @@ Published packages (npm, public, under the `@schemat` org):
 
 - `@schemat/cli`  ← the `schemat` binary
 - `@schemat/core`
+- `@schemat/parser-dbml`
+- `@schemat/parser-drizzle`
+- `@schemat/parser-mikroorm`
+- `@schemat/parser-mongoose`
 - `@schemat/parser-prisma`
+- `@schemat/parser-sequelize`
 - `@schemat/parser-sql`
+- `@schemat/parser-typeorm`
 - `@schemat/render`
 - `@schemat/web`
+
+Six of these (cli, core, parser-prisma, parser-sql, render, web) are on npm at
+`0.1.0`; the six newer parsers have never been published and will appear with
+the next release.
 
 ---
 
@@ -51,10 +61,21 @@ setup needed.
 
 ---
 
+### 4. Let Actions open the version PR
+
+Repo → **Settings** → **Actions** → **General** → **Workflow permissions** →
+tick **"Allow GitHub Actions to create and approve pull requests"**. Without it
+the Release workflow fails with *"GitHub Actions is not permitted to create or
+approve pull requests"* — the `permissions:` block in the workflow cannot grant
+this by itself.
+
+---
+
 ## First release (manual, once)
 
-The packages are set to `0.1.0` but have never been published, so publish the
-first version by hand from your machine (CI takes over afterward):
+Only needed for a package that has never been published (npm rejects a
+provenance publish for a brand-new name from CI in some setups). Publish by
+hand from your machine, then CI takes over:
 
 ```bash
 git checkout main && git pull
@@ -71,8 +92,8 @@ pnpm -r --filter './packages/*' publish --access public --no-git-checks
 Verify:
 
 ```bash
-npm view @schemat/cli version    # -> 0.1.0
-npx @schemat/cli --version       # -> 0.1.0
+npm view @schemat/cli version    # -> the version you just published
+npx @schemat/cli --version       # -> same
 ```
 
 Then tag it:
@@ -83,9 +104,11 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ### The moving `v0` Action tag
 
-The bundled GitHub Action is consumed as `alirezahamid/schemat@v0` (a moving
-major tag). After each release, point `v0` at the new release commit so
-consumers get updates without changing their workflow:
+The bundled GitHub Action is meant to be consumed as `alirezahamid/schemat@v0`
+(a moving major tag). **That tag does not exist yet** — the README and the
+example workflow pin `@main` until it does. Create it with the next release,
+then point it at each new release commit so consumers get updates without
+changing their workflow:
 
 ```bash
 git tag -f v0 && git push origin v0 --force

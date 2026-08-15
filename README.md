@@ -25,6 +25,12 @@ Early. v1 is **read-only**: the repo is the source of truth and the browser rend
 
 ## Install
 
+> **Note:** the published `@schemat/cli` on npm is `0.1.0` and predates the
+> parsers and commands documented below (`init`, `--source`, and the DBML,
+> Drizzle, TypeORM, MikroORM, Mongoose and Sequelize parsers). Until the next
+> release lands, run from a clone of `main` for those. Everything else here
+> matches the published build.
+
 ```bash
 # one-off
 npx @schemat/cli dev
@@ -121,10 +127,14 @@ Snapshot your schema and commit it, then gate PRs with the bundled Action:
 
 ```yaml
 # .github/workflows/schema-drift.yml
-- uses: alirezahamid/schemat@v0
+- uses: alirezahamid/schemat@main
   with:
     root: "."
 ```
+
+The moving `v0` tag does not exist yet — it is created with the next release.
+Until then pin `@main` (or a commit SHA, which is what you want in a
+security-sensitive repo anyway).
 
 It comments the diff on the PR and fails the job when docs are stale. See
 [`examples/github-workflow/schema-drift.yml`](./examples/github-workflow/schema-drift.yml).
