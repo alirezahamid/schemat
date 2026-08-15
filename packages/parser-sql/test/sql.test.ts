@@ -410,6 +410,46 @@ describe("`key` / `index` as column names (B1 regression)", () => {
   });
 });
 
+describe("CREATE UNIQUE INDEX", () => {
+  const parseIndexes = (indexes: string) => {
+    const warnings: string[] = [];
+    const schema = parseSql(`CREATE TABLE users (email TEXT, tenant_id INT); ${indexes}`, warnings);
+    return { schema, warnings };
+  };
+
+  it("marks a single indexed column unique", () => {
+    const { schema, warnings } = parseIndexes(
+      "CREATE UNIQUE INDEX users_email_idx ON users (email);",
+    );
+    expect(schema.tables[0]?.columns[0]?.isUnique).toBe(true);
+    expect(warnings).toEqual([]);
+  });
+
+  it("handles modifiers and quoted schema-qualified identifiers", () => {
+    const warnings: string[] = [];
+    const schema = parseSql(
+      'CREATE TABLE "app"."users" ("email" TEXT); CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "users_email_idx" ON "app"."users" USING btree ("email");',
+      warnings,
+    );
+    expect(schema.tables[0]?.columns[0]?.isUnique).toBe(true);
+    expect(warnings).toEqual([]);
+  });
+
+  it("ignores composite and partial unique indexes without warning", () => {
+    const { schema, warnings } = parseIndexes(
+      "CREATE UNIQUE INDEX composite_idx ON users (email, tenant_id); CREATE UNIQUE INDEX partial_idx ON users (email) WHERE tenant_id = 1;",
+    );
+    expect(schema.tables[0]?.columns.map((column) => column.isUnique)).toEqual([false, false]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("keeps plain indexes silent and does not change uniqueness", () => {
+    const { schema, warnings } = parseIndexes("CREATE INDEX users_email_idx ON users (email);");
+    expect(schema.tables[0]?.columns[0]?.isUnique).toBe(false);
+    expect(warnings).toEqual([]);
+  });
+});
+
 describe("unmatched-statement noise control (B2)", () => {
   it("does not warn for ordinary pg_dump plumbing", () => {
     const warnings: string[] = [];
