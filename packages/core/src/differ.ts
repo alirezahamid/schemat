@@ -49,7 +49,15 @@ function relationSignature(rel: Relation): string {
 }
 
 /**
- * Signature for an enum type: its values in declared order.
+ * Human-readable enum value list for `enum.changed` before/after fields.
+ * Display only — never used for equality (join collides on commas/empties).
+ */
+function enumDisplay(en: Enum): string {
+  return en.values.join(", ");
+}
+
+/**
+ * Order-sensitive structural equality for enum values.
  *
  * Order is deliberately significant. In PostgreSQL an enum's declaration order
  * defines its sort order (`ORDER BY status` follows it), and in MySQL an ENUM
@@ -57,8 +65,8 @@ function relationSignature(rel: Relation): string {
  * therefore a real schema change a reviewer should see, not cosmetic noise —
  * so it is reported as `enum.changed` like any other value edit.
  */
-function enumSignature(en: Enum): string {
-  return en.values.join(", ");
+function enumValuesEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 function byName<T extends { name: string }>(items: readonly T[]): Map<string, T> {
@@ -148,10 +156,13 @@ export function diff(before: IRSchema, after: IRSchema): SchemaChange[] {
       changes.push({ kind: "enum.added", name });
       continue;
     }
-    const beforeSig = enumSignature(beforeEnum);
-    const afterSig = enumSignature(afterEnum);
-    if (beforeSig !== afterSig) {
-      changes.push({ kind: "enum.changed", name, before: beforeSig, after: afterSig });
+    if (!enumValuesEqual(beforeEnum.values, afterEnum.values)) {
+      changes.push({
+        kind: "enum.changed",
+        name,
+        before: enumDisplay(beforeEnum),
+        after: enumDisplay(afterEnum),
+      });
     }
   }
 

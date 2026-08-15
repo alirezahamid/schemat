@@ -69,6 +69,28 @@ describe("differ", () => {
     expect(diff(before, structuredClone(before))).toEqual([]);
   });
 
+  it('detects enum values that collide under join(", ") display', () => {
+    const before = structuredClone(base);
+    before.enums = [{ name: "Tag", values: ["a, b"] }];
+    const after = structuredClone(base);
+    after.enums = [{ name: "Tag", values: ["a", "b"] }];
+
+    expect(diff(before, after)).toEqual([
+      { kind: "enum.changed", name: "Tag", before: "a, b", after: "a, b" },
+    ]);
+  });
+
+  it("detects empty-string value vs empty enum", () => {
+    const before = structuredClone(base);
+    before.enums = [{ name: "Blank", values: [""] }];
+    const after = structuredClone(base);
+    after.enums = [{ name: "Blank", values: [] }];
+
+    expect(diff(before, after)).toEqual([
+      { kind: "enum.changed", name: "Blank", before: "", after: "" },
+    ]);
+  });
+
   it("detects an added table", () => {
     const after = structuredClone(base);
     after.tables.push({ name: "Post", comment: null, columns: [col("id")] });
