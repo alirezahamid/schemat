@@ -91,14 +91,14 @@ function matchDollarTag(sql: string, i: number): string | null {
   return m ? m[0] : null;
 }
 
-/** Index just past the matching dollar-quote closer, or end of input. */
-function findDollarEnd(sql: string, from: number, tag: string): number {
+/** Index just past the matching dollar-quote closer, or null when missing. */
+function findDollarEnd(sql: string, from: number, tag: string): number | null {
   const close = sql.indexOf(tag, from);
-  return close === -1 ? sql.length : close + tag.length;
+  return close === -1 ? null : close + tag.length;
 }
 
 /** Strip `--` line comments and `/* *\/` block comments, preserving strings. */
-function stripComments(sql: string): string {
+function stripComments(sql: string, warnings: string[]): string {
   let out = "";
   let i = 0;
   const n = sql.length;
@@ -109,8 +109,14 @@ function stripComments(sql: string): string {
     const dollarTag = matchDollarTag(sql, i);
     if (dollarTag) {
       const end = findDollarEnd(sql, i + dollarTag.length, dollarTag);
-      out += sql.slice(i, end);
-      i = end;
+      if (end === null) {
+        const line = sql.slice(0, i).split("\n").length;
+        warnings.push(
+          `Unterminated SQL dollar quote "${dollarTag}" opened at line ${line}; input from that point on could not be parsed.`,
+        );
+      }
+      out += sql.slice(i, end ?? sql.length);
+      i = end ?? sql.length;
       continue;
     }
     // single-quoted string literal
@@ -164,8 +170,8 @@ function splitStatements(sql: string): string[] {
     const dollarTag = matchDollarTag(sql, i);
     if (dollarTag) {
       const end = findDollarEnd(sql, i + dollarTag.length, dollarTag);
-      cur += sql.slice(i, end);
-      i = end;
+      cur += sql.slice(i, end ?? sql.length);
+      i = end ?? sql.length;
       continue;
     }
     if (ch === "'") {
@@ -734,7 +740,7 @@ function summarizeUnsupported(statements: string[]): string[] {
 
 /** Parse a raw SQL DDL string into the canonical IR (unvalidated shape). */
 export function parseSql(sql: string, warnings: string[] = []): IRSchema {
-  const clean = stripComments(sql);
+  const clean = stripComments(sql, warnings);
   const statements = splitStatements(clean);
 
   const tables: Table[] = [];

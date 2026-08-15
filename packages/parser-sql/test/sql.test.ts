@@ -454,6 +454,22 @@ describe("unmatched-statement noise control (B2)", () => {
     expect(ir.tables.map((t) => t.name)).toEqual(["posts"]);
   });
 
+  it("warns when a $$ quote is unterminated", () => {
+    const warnings: string[] = [];
+    parseSql("CREATE FUNCTION broken() RETURNS void AS $$\nBEGIN;", warnings);
+    expect(warnings).toEqual([
+      'Unterminated SQL dollar quote "$$" opened at line 1; input from that point on could not be parsed.',
+    ]);
+  });
+
+  it("warns when a tagged dollar quote is unterminated", () => {
+    const warnings: string[] = [];
+    parseSql("\nCREATE FUNCTION broken() RETURNS void AS $func$\nBEGIN;", warnings);
+    expect(warnings).toEqual([
+      'Unterminated SQL dollar quote "$func$" opened at line 2; input from that point on could not be parsed.',
+    ]);
+  });
+
   it("aggregates repeated unsupported statements instead of one warning each", () => {
     const warnings: string[] = [];
     parseSql(
