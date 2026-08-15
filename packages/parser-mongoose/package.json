@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@schemat/core": "workspace:*",
-    "ts-morph": "23.0.0"
+    "ts-morph": "28.0.0"
   },
   "devDependencies": {
     "@types/node": "20.17.10",
