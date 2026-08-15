@@ -10,18 +10,27 @@ export function snapshotPath(projectPath: string): string {
   return path.join(projectPath, SNAPSHOT_DIR, SNAPSHOT_FILE);
 }
 
-/**
- * Load the committed schema snapshot for a project, or null when there is none
- * (or it is malformed). A malformed snapshot returns null rather than throwing
- * so callers can treat "no valid snapshot" uniformly.
- */
+/** Load the committed schema snapshot, or null only when the file is missing. */
 export async function loadSnapshot(projectPath: string): Promise<IRSchema | null> {
+  const target = snapshotPath(projectPath);
+  let raw: string;
   try {
-    const raw = await readFile(snapshotPath(projectPath), "utf8");
-    return parseSchema(JSON.parse(raw));
-  } catch {
-    return null;
+    raw = await readFile(target, "utf8");
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return null;
+    throw error;
   }
+
+  try {
+    return parseSchema(JSON.parse(raw));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`snapshot file exists but is invalid: ${target}: ${reason}`);
+  }
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
 
 /**

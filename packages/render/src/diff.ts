@@ -35,6 +35,15 @@ export function renderDiffText(changes: SchemaChange[]): string {
       case "relation.changed":
         lines.push(`~ relation ${c.name}  (${c.before} → ${c.after})`);
         break;
+      case "enum.added":
+        lines.push(`+ enum    ${c.name}`);
+        break;
+      case "enum.removed":
+        lines.push(`- enum    ${c.name}`);
+        break;
+      case "enum.changed":
+        lines.push(`~ enum    ${c.name}  (${c.before} → ${c.after})`);
+        break;
     }
   }
 

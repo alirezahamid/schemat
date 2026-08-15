@@ -622,6 +622,36 @@ function applyAlterConstraint(stmt: string, tables: Table[], relations: Relation
   }
 }
 
+/** Apply an unconditional, single-column PostgreSQL unique index to the IR. */
+function applyUniqueIndex(stmt: string, tables: Table[]): void {
+  const prefix = /^CREATE\s+UNIQUE\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?/i.exec(
+    stmt,
+  );
+  if (!prefix) return;
+
+  // Index name is irrelevant to the IR, but must be consumed before ON.
+  const [, afterIndexName] = readIdentifier(stmt.slice(prefix[0].length));
+  const on = /^\s*ON\s+(?:ONLY\s+)?/i.exec(afterIndexName);
+  if (!on) return;
+  const [rawTable, afterTable] = readIdentifier(afterIndexName.slice(on[0].length));
+  if (!rawTable) return;
+
+  // Optional access method appears between table and indexed expression list.
+  const rest = afterTable.replace(/^\s*USING\s+\w+/i, "").trimStart();
+  const open = rest.indexOf("(");
+  const close = matchParen(rest, open);
+  if (open !== 0 || close < 0) return;
+  // Partial uniqueness is conditional, so cannot become Column.isUnique.
+  if (/^\s*WHERE\b/i.test(rest.slice(close + 1))) return;
+
+  const columns = parseColumnList(rest);
+  // Composite uniqueness does not imply uniqueness of either individual column.
+  if (columns.length !== 1) return;
+  const table = tables.find((candidate) => candidate.name === unquote(rawTable));
+  const column = table?.columns.find((candidate) => candidate.name === columns[0]);
+  if (column) column.isUnique = true;
+}
+
 /* -------------------------------------------------------------------------- */
 /* CREATE TYPE ... AS ENUM parsing                                            */
 /* -------------------------------------------------------------------------- */
@@ -765,7 +795,10 @@ export function parseSql(sql: string, warnings: string[] = []): IRSchema {
 
   warnings.push(...summarizeUnsupported(unsupported));
 
-  for (const stmt of statements) applyAlterConstraint(stmt, tables, relations);
+  for (const stmt of statements) {
+    applyAlterConstraint(stmt, tables, relations);
+    applyUniqueIndex(stmt, tables);
+  }
 
   return { version: IR_VERSION, tables, enums, relations };
 }

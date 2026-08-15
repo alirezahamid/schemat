@@ -1,4 +1,4 @@
-import type { Column, IRSchema, Relation } from "./ir";
+import type { Column, Enum, IRSchema, Relation } from "./ir";
 
 /** A single structural change between two schema versions. */
 export type SchemaChange =
@@ -20,6 +20,14 @@ export type SchemaChange =
       name: string;
       before: string;
       after: string;
+    }
+  | { kind: "enum.added"; name: string }
+  | { kind: "enum.removed"; name: string }
+  | {
+      kind: "enum.changed";
+      name: string;
+      before: string;
+      after: string;
     };
 
 function columnSignature(col: Column): string {
@@ -38,6 +46,27 @@ function relationSignature(rel: Relation): string {
     `${rel.toTable}(${rel.toColumns.join(",")})`,
     rel.cardinality,
   ].join(" ");
+}
+
+/**
+ * Human-readable enum value list for `enum.changed` before/after fields.
+ * Display only — never used for equality (join collides on commas/empties).
+ */
+function enumDisplay(en: Enum): string {
+  return en.values.join(", ");
+}
+
+/**
+ * Order-sensitive structural equality for enum values.
+ *
+ * Order is deliberately significant. In PostgreSQL an enum's declaration order
+ * defines its sort order (`ORDER BY status` follows it), and in MySQL an ENUM
+ * value's ordinal index is part of the stored representation. A reordering is
+ * therefore a real schema change a reviewer should see, not cosmetic noise —
+ * so it is reported as `enum.changed` like any other value edit.
+ */
+function enumValuesEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 function byName<T extends { name: string }>(items: readonly T[]): Map<string, T> {
@@ -110,6 +139,30 @@ export function diff(before: IRSchema, after: IRSchema): SchemaChange[] {
     const afterSig = relationSignature(afterRel);
     if (beforeSig !== afterSig) {
       changes.push({ kind: "relation.changed", name, before: beforeSig, after: afterSig });
+    }
+  }
+
+  // Enum-level diff. Enums are matched by name; a value added, removed or
+  // renamed shows up as an enum.changed carrying the full before/after value
+  // lists, mirroring how column.changed carries signatures.
+  const beforeEnums = byName(before.enums);
+  const afterEnums = byName(after.enums);
+  for (const name of beforeEnums.keys()) {
+    if (!afterEnums.has(name)) changes.push({ kind: "enum.removed", name });
+  }
+  for (const [name, afterEnum] of afterEnums) {
+    const beforeEnum = beforeEnums.get(name);
+    if (!beforeEnum) {
+      changes.push({ kind: "enum.added", name });
+      continue;
+    }
+    if (!enumValuesEqual(beforeEnum.values, afterEnum.values)) {
+      changes.push({
+        kind: "enum.changed",
+        name,
+        before: enumDisplay(beforeEnum),
+        after: enumDisplay(afterEnum),
+      });
     }
   }
 
