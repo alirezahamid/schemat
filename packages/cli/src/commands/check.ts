@@ -8,6 +8,7 @@ export interface CheckOptions {
   root: string;
   /** Output format: "text" (default) or "markdown" (for PR comments). */
   format: "text" | "markdown";
+  source?: string;
 }
 
 /**
@@ -18,7 +19,7 @@ export interface CheckOptions {
 export async function runCheck(options: CheckOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const result = await resolveSchemaResult(projectPath);
+  const result = await resolveSchemaResult(projectPath, options.source);
   const current = result?.schema ?? null;
   const warnings = result?.warnings ?? [];
   for (const warning of warnings) console.error(`Warning: ${warning}`);

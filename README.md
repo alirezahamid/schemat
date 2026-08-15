@@ -34,9 +34,22 @@ npm i -g @schemat/cli
 schemat dev
 ```
 
+## Quick start
+
+```bash
+# from a repo that already has a Prisma / Drizzle / TypeORM / … schema
+schemat init
+# → writes schemat.config.json, takes an initial .schemat/schema.snapshot.json
+# → prints next steps (commit, add check to CI, run dev)
+
+schemat dev       # live ER diagram
+schemat check     # CI drift gate (after you've committed the snapshot)
+```
+
 ## Commands
 
 ```bash
+schemat init      # detect source, write config, take initial snapshot
 schemat dev       # serve a live, auto-reloading ER diagram (http://localhost:5173)
 schemat export    # write a static schema.svg or schema.mmd (Mermaid) — commit it
 schemat snapshot  # write .schemat/schema.snapshot.json (commit it for drift checks)
@@ -44,7 +57,62 @@ schemat check     # fail if the live schema drifted from the snapshot (for CI)
 schemat diff a b  # structural diff between two schema sources (dirs or .prisma/.sql files)
 ```
 
-Each takes `-r, --root <dir>` (defaults to `.`). See `schemat <command> --help`.
+Common flags (see `schemat <command> --help`):
+
+- `-r, --root <dir>` — project root (default `.`)
+- `-s, --source <parser>` — force a parser, bypassing auto-detect
+  (`prisma | drizzle | typeorm | mikroorm | mongoose | dbml | sql`)
+
+### Source detection and overrides
+
+Auto-detect walks parsers **first-match-wins** in this order (specific → weak):
+
+1. **prisma** — `prisma/schema.prisma` or `prisma/schema/*.prisma`
+2. **drizzle** — `drizzle-orm` dep / `drizzle.config.*` + schema file, or a `pgTable`/`mysqlTable`/`sqliteTable` call
+3. **typeorm** — `typeorm` dep, or `@Entity` + `from 'typeorm'`
+4. **mikroorm** — `@mikro-orm/*` dep, or `@Entity` + `@mikro-orm/core` import
+5. **mongoose** — mongoose models with `new Schema({...})`
+6. **dbml** — `schema.dbml` (and other conventional DBML paths)
+7. **sql** — `schema.sql` / `db/schema.sql` / `sql/schema.sql`, or a root `*.sql` that actually contains `CREATE TABLE` (a bare `seed.sql` of INSERTs does **not** claim the project)
+
+When several signals coexist (e.g. a Drizzle app with a root `seed.sql`), the more specific parser wins. Override when you need to:
+
+```bash
+# force a parser for one command
+schemat snapshot --source drizzle
+schemat check --source drizzle
+schemat dev --source typeorm
+```
+
+Or pin it in the project with a config file at the root:
+
+```json
+// schemat.config.json  (or .schematrc.json)
+{
+  "source": "drizzle"
+}
+```
+
+**Precedence:** CLI `--source` > config file `source` > auto-detect.
+
+`schemat.config.json` is preferred over `.schematrc.json` when both exist.
+
+### `schemat init`
+
+Onboarding in one command:
+
+```text
+$ schemat init
+  ✓ Wrote schemat.config.json (source: prisma)
+  ✓ Snapshot written: 3 tables, 2 relations, 0 enums → .schemat/schema.snapshot.json
+
+Next steps:
+  1. Commit schemat.config.json and .schemat/schema.snapshot.json
+  2. Add `schemat check` to CI (see the GitHub Action in the README)
+  3. Run `schemat dev` for a live ER diagram
+```
+
+Flags: `--source <parser>` when detection is wrong or ambiguous, `--force` to overwrite an existing config.
 
 ### Drift check in CI
 
@@ -59,6 +127,9 @@ Snapshot your schema and commit it, then gate PRs with the bundled Action:
 
 It comments the diff on the PR and fails the job when docs are stale. See
 [`examples/github-workflow/schema-drift.yml`](./examples/github-workflow/schema-drift.yml).
+
+Recommended flow: `schemat init` once locally → commit config + snapshot → run
+`schemat check` (or the Action) in CI.
 
 ## Architecture
 
@@ -81,7 +152,7 @@ Monorepo packages (all published under the [`@schemat`](https://www.npmjs.com/or
 | [`@schemat/parser-mongoose`](./packages/parser-mongoose) | Mongoose schemas (static TS AST) → IR. |
 | [`@schemat/render`](./packages/render) | Headless SVG + Mermaid export and diff rendering. |
 | [`@schemat/web`](./packages/web) | Vite + React + React Flow canvas. |
-| [`@schemat/cli`](./packages/cli) | The `schemat` CLI: dev, export, snapshot, check, diff. |
+| [`@schemat/cli`](./packages/cli) | The `schemat` CLI: init, dev, export, snapshot, check, diff. |
 
 ## Contributing
 

@@ -7,6 +7,8 @@ export interface DiffOptions {
   after: string;
   /** "text" (default), "markdown", or "json". */
   format: "text" | "markdown" | "json";
+  /** Force a parser for directory sides (CLI `--source`). */
+  source?: string;
 }
 
 /**
@@ -16,7 +18,7 @@ export interface DiffOptions {
  * two schemas differ so it can gate scripts if desired.
  */
 export async function runDiff(options: DiffOptions): Promise<void> {
-  const beforeResult = await resolveSchemaFromResult(options.before);
+  const beforeResult = await resolveSchemaFromResult(options.before, options.source);
   const before = beforeResult?.schema ?? null;
   for (const warning of beforeResult?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!before) {
@@ -26,7 +28,7 @@ export async function runDiff(options: DiffOptions): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const afterResult = await resolveSchemaFromResult(options.after);
+  const afterResult = await resolveSchemaFromResult(options.after, options.source);
   const after = afterResult?.schema ?? null;
   for (const warning of afterResult?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!after) {

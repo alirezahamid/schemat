@@ -1,12 +1,13 @@
 import path from "node:path";
 import { normalizeParserOutput } from "@schemat/core";
-import { detectParser, noSchemaMessage } from "../schema-source";
+import { noSchemaMessage, resolveParser } from "../schema-source";
 import { startServer } from "../server";
 import { watchSchema } from "../watch";
 
 export interface DevOptions {
   root: string;
   port: number;
+  source?: string;
 }
 
 /**
@@ -16,7 +17,7 @@ export interface DevOptions {
 export async function runDev(options: DevOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const parser = await detectParser(projectPath);
+  const parser = await resolveParser(projectPath, options.source);
   if (!parser) {
     console.error(await noSchemaMessage(projectPath));
     process.exitCode = 1;

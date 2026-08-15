@@ -9,20 +9,30 @@ import { mongooseParser } from "@schemat/parser-mongoose";
 import { prismaParser } from "@schemat/parser-prisma";
 import { sqlParser } from "@schemat/parser-sql";
 import { typeormParser } from "@schemat/parser-typeorm";
+import { loadConfig } from "./config";
 
 /**
- * All parsers Schemat knows about, in detection priority order. Adding a source
- * is a new entry here — nothing else in the CLI changes (the modular seam).
+ * All parsers Schemat knows about, in auto-detection priority order.
+ * Specific sources first; SQL last — its root `*.sql` glob is the weakest signal
+ * and must not shadow Drizzle/TypeORM/etc. when a stray seed.sql sits at root.
+ * Adding a source is a new entry here — nothing else in the CLI changes.
  */
 const PARSERS: readonly SchemaParser[] = [
   prismaParser,
-  sqlParser,
-  dbmlParser,
   drizzleParser,
   typeormParser,
   mikroormParser,
   mongooseParser,
+  dbmlParser,
+  sqlParser,
 ];
+
+/** Stable parser ids accepted by `--source` / config `source`. */
+export const PARSER_NAMES: readonly string[] = PARSERS.map((p) => p.name);
+
+export function getParserByName(name: string): SchemaParser | undefined {
+  return PARSERS.find((p) => p.name === name);
+}
 
 /** The first parser that detects a schema under `projectPath`, or null. */
 export async function detectParser(projectPath: string): Promise<SchemaParser | null> {
@@ -33,17 +43,54 @@ export async function detectParser(projectPath: string): Promise<SchemaParser | 
 }
 
 /**
- * Resolve and parse the schema at `projectPath` using the first matching
- * parser. Returns null when no known schema source is present.
+ * Resolve which parser to use.
+ * Precedence: explicit `sourceOverride` (CLI `--source`) > config file `source`
+ * > first-match auto-detect.
  */
-export async function resolveSchemaResult(projectPath: string): Promise<ParserResult | null> {
-  const parser = await detectParser(projectPath);
+export async function resolveParser(
+  projectPath: string,
+  sourceOverride?: string,
+): Promise<SchemaParser | null> {
+  if (sourceOverride) {
+    const parser = getParserByName(sourceOverride);
+    if (!parser) {
+      throw new Error(`Unknown source "${sourceOverride}". Supported: ${PARSER_NAMES.join(", ")}.`);
+    }
+    return parser;
+  }
+
+  const config = await loadConfig(projectPath);
+  if (config?.source) {
+    const parser = getParserByName(config.source);
+    if (!parser) {
+      throw new Error(
+        `Unknown source "${config.source}" in config. Supported: ${PARSER_NAMES.join(", ")}.`,
+      );
+    }
+    return parser;
+  }
+
+  return detectParser(projectPath);
+}
+
+/**
+ * Resolve and parse the schema at `projectPath`. Returns null when no known
+ * schema source is present (and no override was forced).
+ */
+export async function resolveSchemaResult(
+  projectPath: string,
+  source?: string,
+): Promise<ParserResult | null> {
+  const parser = await resolveParser(projectPath, source);
   if (!parser) return null;
   return normalizeParserOutput(await parser.parse({ projectPath }));
 }
 
-export async function resolveSchema(projectPath: string): Promise<IRSchema | null> {
-  return (await resolveSchemaResult(projectPath))?.schema ?? null;
+export async function resolveSchema(
+  projectPath: string,
+  source?: string,
+): Promise<IRSchema | null> {
+  return (await resolveSchemaResult(projectPath, source))?.schema ?? null;
 }
 
 /**
@@ -51,7 +98,10 @@ export async function resolveSchema(projectPath: string): Promise<IRSchema | nul
  * detected parser) or a single schema file (.prisma or .sql). Used by
  * `schemat diff <a> <b>` where each side can be a dir or a file.
  */
-export async function resolveSchemaFromResult(target: string): Promise<ParserResult | null> {
+export async function resolveSchemaFromResult(
+  target: string,
+  source?: string,
+): Promise<ParserResult | null> {
   const resolved = path.resolve(process.cwd(), target);
 
   let isDir = false;
@@ -61,7 +111,7 @@ export async function resolveSchemaFromResult(target: string): Promise<ParserRes
     return null;
   }
 
-  if (isDir) return resolveSchemaResult(resolved);
+  if (isDir) return resolveSchemaResult(resolved, source);
 
   // Single file: pick the parser by extension, pointing it at the file's dir
   // with an explicit files override.
@@ -85,11 +135,12 @@ export async function resolveSchemaFromResult(target: string): Promise<ParserRes
 /** Human list of the sources Schemat can detect, for error messages. */
 export const SUPPORTED_SOURCES =
   "Prisma (<root>/prisma/schema.prisma, or a <root>/prisma/schema/ folder), " +
-  "SQL (<root>/schema.sql), DBML (<root>/schema.dbml), " +
   "Drizzle (<root>/src/schema.ts, drizzle.config.ts), " +
   "TypeORM (*.entity.ts / @Entity classes), " +
   "MikroORM (@Entity classes importing @mikro-orm/core), " +
-  "or Mongoose (models with new Schema({...}))";
+  "Mongoose (models with new Schema({...})), " +
+  "DBML (<root>/schema.dbml), " +
+  "or SQL (<root>/schema.sql)";
 
 /**
  * Scan a monorepo for schemas one level down under common workspace dirs
@@ -128,7 +179,7 @@ export async function findSchemasInSubdirs(root: string): Promise<string[]> {
 export async function noSchemaMessage(projectPath: string): Promise<string> {
   const base =
     `No schema found under ${projectPath}.\n` +
-    `Expected ${SUPPORTED_SOURCES}, or pass --root <dir>.`;
+    `Expected ${SUPPORTED_SOURCES}, or pass --root <dir> / --source <parser>.`;
   const subdirs = await findSchemasInSubdirs(projectPath);
   if (subdirs.length === 0) return base;
 
@@ -147,6 +198,6 @@ export async function noSchemaMessage(projectPath: string): Promise<string> {
   );
 }
 
-export async function resolveSchemaFrom(target: string): Promise<IRSchema | null> {
-  return (await resolveSchemaFromResult(target))?.schema ?? null;
+export async function resolveSchemaFrom(target: string, source?: string): Promise<IRSchema | null> {
+  return (await resolveSchemaFromResult(target, source))?.schema ?? null;
 }
