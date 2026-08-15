@@ -1,6 +1,7 @@
 import { access, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { configWritePath } from "../config";
+import { ensureProjectDir } from "../project-path";
 import {
   PARSER_NAMES,
   detectParser,
@@ -34,6 +35,7 @@ async function fileExists(p: string): Promise<boolean> {
  */
 export async function runInit(options: InitOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
+  if (!(await ensureProjectDir(projectPath, { command: "init", root: options.root }))) return;
 
   let parserName: string;
   if (options.source) {

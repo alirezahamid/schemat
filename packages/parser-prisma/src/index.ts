@@ -260,6 +260,12 @@ async function loadDatamodel(input: ParserInput): Promise<string> {
   return ensureDatasourceUrl(await readFile(singleFile, "utf8"));
 }
 
+/** Describe where the datamodel came from, for error messages. */
+function describeSource(input: ParserInput): string {
+  if (input.files?.length) return input.files.join(", ");
+  return path.join(input.projectPath, "prisma");
+}
+
 /** List `*.prisma` files in a schema folder (sorted for deterministic output), or [] if absent. */
 async function readPrismaFolder(dir: string): Promise<string[]> {
   try {
@@ -276,7 +282,13 @@ async function readPrismaFolder(dir: string): Promise<string[]> {
 /** Parse a Prisma schema into the canonical Schemat IR. */
 async function parse(input: ParserInput): Promise<ParserResult> {
   const datamodel = await loadDatamodel(input);
-  const dmmf = await getDMMF({ datamodel });
+  const dmmf = await getDMMF({ datamodel }).catch((err: unknown) => {
+    // Prisma's validator throws a wall of wasm-formatted `P1012` text that never
+    // says which file was read or which tool ran it. Keep the detail, but lead
+    // with the context a user needs to act.
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`Could not parse the Prisma schema at ${describeSource(input)}.\n${detail}`);
+  });
   const models = dmmf.datamodel.models as unknown as DmmfModel[];
   const enums = dmmf.datamodel.enums as unknown as DmmfEnum[];
 

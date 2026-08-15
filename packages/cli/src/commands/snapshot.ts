@@ -1,4 +1,5 @@
 import path from "node:path";
+import { ensureProjectDir } from "../project-path";
 import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
 import { suggestCommand } from "../suggest";
@@ -15,6 +16,7 @@ export interface SnapshotOptions {
  */
 export async function runSnapshot(options: SnapshotOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
+  if (!(await ensureProjectDir(projectPath, { command: "snapshot", root: options.root }))) return;
 
   const result = await resolveSchemaResult(projectPath, options.source);
   const schema = result?.schema ?? null;

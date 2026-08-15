@@ -89,4 +89,29 @@ export class User {
 
     expect(await typeormParser.detect(root)).toBe(false);
   });
+
+  it("does not claim a MikroORM service in a typeorm-declaring workspace", async () => {
+    // The hoisted-workspace rung accepts any @Entity file alongside an ancestor
+    // that declares typeorm. MikroORM also uses @Entity, and this parser runs
+    // first, so without the @mikro-orm/ exclusion it steals the service and
+    // emits class-name tables with zero columns.
+    write("package.json", JSON.stringify({ name: "root", dependencies: { typeorm: "0.3.20" } }));
+    write(
+      "apps/mikro-svc/package.json",
+      JSON.stringify({ name: "mikro-svc", dependencies: { "@mikro-orm/core": "6" } }),
+    );
+    write(
+      "apps/mikro-svc/src/user.entity.ts",
+      `import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
+
+@Entity({ tableName: "users" })
+export class User {
+  @PrimaryKey() id!: number;
+  @Property() name!: string;
+}
+`,
+    );
+
+    expect(await typeormParser.detect(join(root, "apps/mikro-svc"))).toBe(false);
+  });
 });

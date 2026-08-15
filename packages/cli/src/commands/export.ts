@@ -2,6 +2,7 @@ import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { renderMermaid, renderSvg } from "@schemat/render/node";
 import { loadLayout } from "../layout";
+import { displayPath, ensureProjectDir } from "../project-path";
 import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 
 export type ExportFormat = "svg" | "mermaid";
@@ -59,6 +60,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
   }
 
   const projectPath = path.resolve(process.cwd(), options.root);
+  if (!(await ensureProjectDir(projectPath, { command: "export", root: options.root }))) return;
 
   const result = await resolveSchemaResult(projectPath, options.source);
   const schema = result?.schema ?? null;
@@ -81,7 +83,8 @@ export async function runExport(options: ExportOptions): Promise<void> {
   await mkdir(path.dirname(outPath), { recursive: true });
   await writeFile(outPath, content, "utf8");
 
-  const rel = path.relative(process.cwd(), outPath) || outPath;
+  // Absolute beats an unreadable ../../../… climb out of the cwd.
+  const rel = displayPath(outPath);
   console.log(
     `  ✓ Exported ${schema.tables.length} tables, ${schema.relations.length} relations, ` +
       `${schema.enums.length} enums → ${rel}`,

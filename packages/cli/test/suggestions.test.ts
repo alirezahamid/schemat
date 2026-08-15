@@ -1,11 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Command } from "commander";
+import type { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runCheck } from "../src/commands/check";
+import { runDev } from "../src/commands/dev";
 import { runInit } from "../src/commands/init";
 import { runSnapshot } from "../src/commands/snapshot";
+import { createProgram } from "../src/program";
 import { noSchemaMessage } from "../src/schema-source";
 
 /**
@@ -15,32 +18,17 @@ import { noSchemaMessage } from "../src/schema-source";
  * run each one through a parser mirroring src/index.ts.
  */
 
-/** A commander program with the same commands/options as the real CLI. */
+/**
+ * The REAL command/option tree, with every action replaced by a no-op so
+ * parsing a suggestion doesn't actually run a command. Importing the grammar
+ * (rather than mirroring it by hand) is what stops this guard from validating
+ * suggestions against a stale copy of the CLI.
+ */
 function buildProgram(): Command {
-  const program = new Command();
-  program.name("schemat").exitOverride();
-  const withCommon = (cmd: Command) =>
-    cmd
-      .exitOverride()
-      .option("-r, --root <dir>", "project root", ".")
-      .option("-s, --source <parser>", "source override")
-      .action(() => undefined);
-
-  withCommon(program.command("init")).option("-f, --force");
-  withCommon(program.command("dev")).option("-p, --port <number>", "port", "5173");
-  withCommon(program.command("export"))
-    .option("-f, --format <format>", "format", "svg")
-    .option("-o, --out <file>", "out file");
-  withCommon(program.command("snapshot"));
-  withCommon(program.command("check")).option("-f, --format <format>", "format", "text");
-  program
-    .command("diff")
-    .exitOverride()
-    .argument("<before>")
-    .argument("<after>")
-    .option("-f, --format <format>", "format", "text")
-    .option("-s, --source <parser>", "source override")
-    .action(() => undefined);
+  const program = createProgram().exitOverride();
+  for (const cmd of program.commands) {
+    cmd.exitOverride().action(() => undefined);
+  }
   return program;
 }
 
@@ -120,7 +108,11 @@ describe("every emitted suggestion is copy-pasteable", () => {
   });
 
   it("check, snapshot and init next-steps output stay runnable", async () => {
-    const prisma = path.join(dir, "prisma");
+    // A non-"." root on purpose: with root ".", `suggestCommand` omits --root
+    // and a hardcoded default like "schemat snapshot" looks correct by
+    // accident. Everything below must carry `--root apps/api` to pass.
+    const root = path.join("apps", "api");
+    const prisma = path.join(dir, root, "prisma");
     mkdirSync(prisma, { recursive: true });
     writeFileSync(path.join(prisma, "schema.prisma"), "model User {\n  id Int @id\n}\n", "utf8");
 
@@ -133,11 +125,11 @@ describe("every emitted suggestion is copy-pasteable", () => {
     });
 
     // check without a snapshot → "run snapshot first"
-    await runCheck({ root: ".", format: "text" });
+    await runCheck({ root, format: "text" });
     // init → next steps
-    await runInit({ root: "." });
+    await runInit({ root });
     // snapshot → "commit this so check can detect drift"
-    await runSnapshot({ root: "." });
+    await runSnapshot({ root });
     // Introduce drift so the markdown report emits its "regenerate it with …"
     // suggestion rather than the up-to-date message.
     writeFileSync(
@@ -146,13 +138,72 @@ describe("every emitted suggestion is copy-pasteable", () => {
       "utf8",
     );
     // check with drift in markdown → "regenerate it with …"
-    await runCheck({ root: ".", format: "markdown" });
+    await runCheck({ root, format: "markdown" });
 
     const suggestions = extractSuggestions(lines.join("\n"));
     expect(suggestions).toEqual(
-      expect.arrayContaining(["schemat snapshot", "schemat check", "schemat dev"]),
+      expect.arrayContaining([
+        `schemat snapshot --root ${root}`,
+        `schemat check --root ${root}`,
+        `schemat dev --root ${root}`,
+      ]),
+    );
+    for (const s of suggestions) {
+      assertRunnable(s);
+      // No suggestion may silently drop the root the user passed.
+      expect(s, `suggestion lost --root: ${s}`).toContain(`--root ${root}`);
+    }
+  });
+
+  it("dev's port-conflict suggestions are runnable and keep --root", async () => {
+    const root = path.join("apps", "api");
+    const prisma = path.join(dir, root, "prisma");
+    mkdirSync(prisma, { recursive: true });
+    writeFileSync(path.join(prisma, "schema.prisma"), "model User {\n  id Int @id\n}\n", "utf8");
+
+    // Hold a real port so `dev` hits EADDRINUSE rather than a mocked error.
+    const blocker = createServer();
+    const port = await new Promise<number>((resolve) => {
+      blocker.listen(0, "127.0.0.1", () => {
+        const address = blocker.address();
+        resolve(typeof address === "object" && address !== null ? address.port : 0);
+      });
+    });
+
+    const lines: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args) => lines.push(args.join(" ")));
+    vi.spyOn(console, "error").mockImplementation((...args) => lines.push(args.join(" ")));
+
+    try {
+      await runDev({ root, port });
+    } finally {
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    }
+
+    const output = lines.join("\n");
+    expect(output).toContain(`Port ${port} is already in use.`);
+    expect(process.exitCode).toBe(1);
+
+    const suggestions = extractSuggestions(output);
+    expect(suggestions).toEqual(
+      expect.arrayContaining([
+        `schemat dev --root ${root} --port ${port + 1}`,
+        `schemat dev --root ${root} --port 0`,
+      ]),
     );
     for (const s of suggestions) assertRunnable(s);
+  });
+
+  it("rejects a bad --port with a message naming schemat and the flag", async () => {
+    const lines: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) => lines.push(args.join(" ")));
+
+    await runDev({ root: ".", port: "abc" });
+
+    const output = lines.join("\n");
+    expect(output).toContain('Invalid --port "abc"');
+    expect(process.exitCode).toBe(1);
+    for (const s of extractSuggestions(output)) assertRunnable(s);
   });
 
   it("suggestions in a subdirectory root stay runnable and keep --root", async () => {

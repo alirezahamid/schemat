@@ -149,9 +149,27 @@ async function detect(projectPath: string): Promise<boolean> {
   //    package.json, so a service's own package.json never mentions it. Accept
   //    that only alongside a real entity file here, so schema-less packages in
   //    the same workspace don't all claim to be TypeORM projects.
-  if (tsFiles.some(fileHasEntityDecorator) && ancestorDeclaresTypeorm(projectPath)) return true;
+  //    The same @mikro-orm/ exclusion as rung 2 applies: MikroORM also uses
+  //    @Entity, and this parser precedes the MikroORM one, so without the guard
+  //    a MikroORM service in a typeorm-declaring workspace gets claimed here and
+  //    emits class-name tables with zero columns.
+  if (tsFiles.some(fileHasNonMikroEntityDecorator) && ancestorDeclaresTypeorm(projectPath)) {
+    return true;
+  }
 
   return false;
+}
+
+/** @Entity decorator in a file that is not a MikroORM entity. */
+function fileHasNonMikroEntityDecorator(path: string): boolean {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return false;
+  }
+  if (!/@Entity\s*\(/.test(text)) return false;
+  return !/from\s+['"]@mikro-orm\//.test(text);
 }
 
 /**
