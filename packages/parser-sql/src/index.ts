@@ -6,6 +6,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -80,6 +81,22 @@ function canonicalType(rawType: string): string {
 /* Preprocessing                                                              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * If a dollar-quote opener (`$$` or `$tag$`) starts at `i`, return the opening
+ * token; otherwise null. Postgres tags are `[A-Za-z_][A-Za-z0-9_]*`.
+ */
+function matchDollarTag(sql: string, i: number): string | null {
+  if (sql[i] !== "$") return null;
+  const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+  return m ? m[0] : null;
+}
+
+/** Index just past the matching dollar-quote closer, or end of input. */
+function findDollarEnd(sql: string, from: number, tag: string): number {
+  const close = sql.indexOf(tag, from);
+  return close === -1 ? sql.length : close + tag.length;
+}
+
 /** Strip `--` line comments and `/* *\/` block comments, preserving strings. */
 function stripComments(sql: string): string {
   let out = "";
@@ -88,6 +105,14 @@ function stripComments(sql: string): string {
   while (i < n) {
     const ch = sql[i];
     const next = sql[i + 1];
+    // dollar-quoted body ($$ ... $$ / $tag$ ... $tag$): opaque, copied verbatim
+    const dollarTag = matchDollarTag(sql, i);
+    if (dollarTag) {
+      const end = findDollarEnd(sql, i + dollarTag.length, dollarTag);
+      out += sql.slice(i, end);
+      i = end;
+      continue;
+    }
     // single-quoted string literal
     if (ch === "'") {
       out += ch;
@@ -134,6 +159,15 @@ function splitStatements(sql: string): string[] {
   const n = sql.length;
   while (i < n) {
     const ch = sql[i];
+    // A dollar-quoted body is one opaque unit — semicolons inside it must not
+    // split the enclosing CREATE FUNCTION into fragments.
+    const dollarTag = matchDollarTag(sql, i);
+    if (dollarTag) {
+      const end = findDollarEnd(sql, i + dollarTag.length, dollarTag);
+      cur += sql.slice(i, end);
+      i = end;
+      continue;
+    }
     if (ch === "'") {
       cur += ch;
       i++;
@@ -448,7 +482,7 @@ interface TableResult {
 }
 
 /** Parse one `CREATE TABLE ...` statement. */
-function parseCreateTable(stmt: string): TableResult | null {
+function parseCreateTable(stmt: string, warnings: string[] = []): TableResult | null {
   const m =
     /^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?/i.exec(
       stmt,
@@ -491,7 +525,11 @@ function parseCreateTable(stmt: string): TableResult | null {
         const rel = parseTableLevelFk(item, tableName);
         if (rel) relations.push(rel);
       }
-      // CHECK: ignored
+      if (kind === "CHECK") {
+        warnings.push(
+          `SQL CHECK constraint on table "${tableName}" is not represented; constraint skipped.`,
+        );
+      }
       continue;
     }
     // Skip other non-column noise (e.g. LIKE, PRIMARY without matching above)
@@ -595,21 +633,118 @@ function parseCreateEnum(stmt: string): Enum | null {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Unmatched-statement classification                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Statements a schema dump routinely contains that Schemat deliberately does
+ * not model. These are not gaps a user can act on, so they never warn.
+ */
+const IGNORED_STATEMENT_PATTERNS: RegExp[] = [
+  // Session/runtime settings and psql plumbing.
+  /^SET\b/i,
+  /^RESET\b/i,
+  /^SELECT\s+(?:pg_catalog\.)?set_config\b/i,
+  /^\\/, // psql meta commands (\connect, \restrict, ...)
+  /^(?:BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION|END)\b/i,
+  // Extensions, comments, ownership, privileges.
+  /^(?:CREATE|DROP|ALTER)\s+EXTENSION\b/i,
+  /^COMMENT\s+ON\b/i,
+  /^(?:GRANT|REVOKE)\b/i,
+  /^ALTER\s+(?:\w+\s+)*?\S+\s+OWNER\s+TO\b/i,
+  /^ALTER\s+DEFAULT\s+PRIVILEGES\b/i,
+  // Objects outside the ER model: routines, triggers, indexes, views, etc.
+  /^(?:CREATE|ALTER|DROP)\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE|TRIGGER|RULE|POLICY|AGGREGATE|OPERATOR|CAST|COLLATION|SERVER|PUBLICATION|SUBSCRIPTION|EVENT\s+TRIGGER|TEXT\s+SEARCH\s+\w+)\b/i,
+  /^(?:CREATE|ALTER|DROP)\s+(?:UNIQUE\s+)?INDEX\b/i,
+  /^(?:CREATE|ALTER|DROP)\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?(?:MATERIALIZED\s+)?VIEW\b/i,
+  /^(?:CREATE|ALTER|DROP)\s+(?:TEMP(?:ORARY)?\s+|UNLOGGED\s+)?SEQUENCE\b/i,
+  /^(?:CREATE|ALTER|DROP)\s+SCHEMA\b/i,
+  /^(?:CREATE|ALTER|DROP)\s+(?:DATABASE|ROLE|USER|TABLESPACE)\b/i,
+  // Data, not schema.
+  /^(?:INSERT|UPDATE|DELETE|COPY|TRUNCATE|ANALYZE|VACUUM|REFRESH)\b/i,
+  /^SELECT\s+pg_catalog\.setval\b/i,
+];
+
+/** True when the statement is an expected dump artifact Schemat ignores. */
+function isIntentionallyIgnored(stmt: string): boolean {
+  return IGNORED_STATEMENT_PATTERNS.some((re) => re.test(stmt));
+}
+
+/** Coarse statement kind ("CREATE TYPE", "LOCK", ...) used to group warnings. */
+function statementKind(stmt: string): string {
+  const words = stmt.split(/\s+/).filter(Boolean);
+  const head = (words[0] ?? "").toUpperCase();
+  if (head === "CREATE" || head === "ALTER" || head === "DROP") {
+    const rest = words
+      .slice(1)
+      .map((w) => w.toUpperCase())
+      .filter(
+        (w) =>
+          !["OR", "REPLACE", "UNIQUE", "GLOBAL", "LOCAL", "TEMP", "TEMPORARY", "UNLOGGED"].includes(
+            w,
+          ),
+      );
+    return `${head} ${rest[0] ?? ""}`.trim();
+  }
+  return head;
+}
+
+const MAX_WARNING_EXAMPLES = 2;
+const MAX_EXAMPLE_LENGTH = 120;
+
+/** Collapse a statement to a single line, capped for readability. */
+function summarizeStatement(stmt: string): string {
+  const flat = stmt.replace(/\s+/g, " ").trim();
+  return flat.length > MAX_EXAMPLE_LENGTH ? `${flat.slice(0, MAX_EXAMPLE_LENGTH)}...` : flat;
+}
+
+/**
+ * Turn every genuinely unsupported statement into a bounded summary: one
+ * warning per statement kind, with a capped number of examples, instead of one
+ * warning per statement.
+ */
+function summarizeUnsupported(statements: string[]): string[] {
+  const byKind = new Map<string, string[]>();
+  for (const stmt of statements) {
+    const kind = statementKind(stmt) || "SQL";
+    const bucket = byKind.get(kind);
+    if (bucket) bucket.push(stmt);
+    else byKind.set(kind, [stmt]);
+  }
+  const out: string[] = [];
+  for (const [kind, group] of byKind) {
+    if (group.length === 1) {
+      out.push(
+        `Unsupported SQL statement "${summarizeStatement(group[0] ?? "")}"; statement skipped.`,
+      );
+      continue;
+    }
+    const examples = group
+      .slice(0, MAX_WARNING_EXAMPLES)
+      .map((stmt) => `"${summarizeStatement(stmt)}"`)
+      .join("; ");
+    out.push(`Unsupported SQL: ${group.length} ${kind} statements skipped (e.g. ${examples}).`);
+  }
+  return out;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Public parser                                                              */
 /* -------------------------------------------------------------------------- */
 
 /** Parse a raw SQL DDL string into the canonical IR (unvalidated shape). */
-export function parseSql(sql: string): IRSchema {
+export function parseSql(sql: string, warnings: string[] = []): IRSchema {
   const clean = stripComments(sql);
   const statements = splitStatements(clean);
 
   const tables: Table[] = [];
   const enums: Enum[] = [];
   const relations: Relation[] = [];
+  const unsupported: string[] = [];
 
   for (const stmt of statements) {
     if (/^CREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\b/i.test(stmt)) {
-      const res = parseCreateTable(stmt);
+      const res = parseCreateTable(stmt, warnings);
       if (res) {
         tables.push(res.table);
         relations.push(...res.relations);
@@ -617,8 +752,12 @@ export function parseSql(sql: string): IRSchema {
     } else if (/^CREATE\s+TYPE\b/i.test(stmt) && /\bAS\s+ENUM\b/i.test(stmt)) {
       const en = parseCreateEnum(stmt);
       if (en) enums.push(en);
+    } else if (!/^ALTER\s+TABLE\b/i.test(stmt) && !isIntentionallyIgnored(stmt)) {
+      unsupported.push(stmt);
     }
   }
+
+  warnings.push(...summarizeUnsupported(unsupported));
 
   for (const stmt of statements) applyAlterConstraint(stmt, tables, relations);
 
@@ -660,15 +799,16 @@ async function resolveFiles(input: ParserInput): Promise<string[]> {
   return [];
 }
 
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const files = await resolveFiles(input);
   if (files.length === 0) {
     throw new Error(`No SQL schema file found under ${input.projectPath}`);
   }
   const parts: IRSchema[] = [];
+  const warnings: string[] = [];
   for (const file of files) {
     const sql = await readFile(file, "utf8");
-    parts.push(parseSql(sql));
+    parts.push(parseSql(sql, warnings));
   }
   const merged: IRSchema = {
     version: IR_VERSION,
@@ -676,7 +816,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
     enums: parts.flatMap((p) => p.enums),
     relations: parts.flatMap((p) => p.relations),
   };
-  return parseSchema(merged);
+  return { schema: parseSchema(merged), warnings };
 }
 
 async function detect(projectPath: string): Promise<boolean> {

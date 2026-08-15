@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseSchema } from "@schemat/core";
+import { normalizeParserOutput, parseSchema } from "@schemat/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { mikroormParser } from "../src/index";
 
@@ -130,7 +130,7 @@ describe("mikroormParser.detect", () => {
 describe("mikroormParser.parse", () => {
   it("maps entities to tables, honoring tableName option", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     const names = ir.tables.map((t) => t.name).sort();
     expect(names).toEqual(["Organization", "Post", "Tag", "profiles", "users"]);
     expect(() => parseSchema(ir)).not.toThrow();
@@ -138,7 +138,7 @@ describe("mikroormParser.parse", () => {
 
   it("extracts primary key, unique, nullable, and default columns", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     const users = ir.tables.find((t) => t.name === "users");
     const id = users?.columns.find((c) => c.name === "id");
     expect(id?.isPrimaryKey).toBe(true);
@@ -153,7 +153,7 @@ describe("mikroormParser.parse", () => {
 
   it("resolves an identifier @Enum(() => UserRole) to its members", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     const roleEnum = ir.enums.find((e) => e.name === "UserRole");
     expect(roleEnum).toBeTruthy();
     expect(roleEnum?.values).toEqual(["admin", "member"]);
@@ -161,7 +161,7 @@ describe("mikroormParser.parse", () => {
 
   it("creates a named enum for inline @Enum({ items: [...] })", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     const tierEnum = ir.enums.find((e) => e.name === "users_tier_enum");
     expect(tierEnum).toBeTruthy();
     expect(tierEnum?.values).toEqual(["a", "b", "c"]);
@@ -169,7 +169,7 @@ describe("mikroormParser.parse", () => {
 
   it("maps @ManyToOne to a one-to-many relation resolving to the target table name", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     // User.org @ManyToOne(() => Organization) -> one-to-many to "Organization"
     const rel = ir.relations.find((r) => r.name === "users_org");
     expect(rel).toBeTruthy();
@@ -181,7 +181,7 @@ describe("mikroormParser.parse", () => {
 
   it("maps @OneToOne to a one-to-one relation to the table name (profiles)", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     const rel = ir.relations.find((r) => r.name === "users_profile");
     expect(rel).toBeTruthy();
     expect(rel?.cardinality).toBe("one-to-one");
@@ -190,7 +190,7 @@ describe("mikroormParser.parse", () => {
 
   it("maps owning @ManyToMany to a many-to-many relation with empty columns", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     const rel = ir.relations.find((r) => r.name === "users_tags");
     expect(rel).toBeTruthy();
     expect(rel?.cardinality).toBe("many-to-many");
@@ -200,7 +200,7 @@ describe("mikroormParser.parse", () => {
 
   it("skips @OneToMany (inverse of ManyToOne) and mappedBy @ManyToMany", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     // User.posts is @OneToMany -> no relation named users_posts
     expect(ir.relations.find((r) => r.name === "users_posts")).toBeUndefined();
     // Post.tags is @ManyToMany with mappedBy -> skipped (inverse side)
@@ -213,7 +213,7 @@ describe("mikroormParser.parse", () => {
 
   it("emits exactly one cardinality never equal to many-to-one", async () => {
     const dir = makeProject({ "src/user.entity.ts": USER_ENTITY });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     for (const r of ir.relations) {
       expect(["one-to-one", "one-to-many", "many-to-many"]).toContain(r.cardinality);
     }
@@ -225,7 +225,9 @@ describe("mikroormParser.parse", () => {
       "src/other.entity.ts":
         'import { Entity, PrimaryKey } from "@mikro-orm/core";\n@Entity()\nexport class Other { @PrimaryKey() id!: number; }',
     });
-    const ir = await mikroormParser.parse({ projectPath: dir, files: ["src/other.entity.ts"] });
+    const ir = normalizeParserOutput(
+      await mikroormParser.parse({ projectPath: dir, files: ["src/other.entity.ts"] }),
+    ).schema;
     expect(ir.tables.map((t) => t.name)).toEqual(["Other"]);
   });
 
@@ -234,7 +236,7 @@ describe("mikroormParser.parse", () => {
       "src/broken.entity.ts":
         'import { Entity, Property } from "@mikro-orm/core";\n@Entity()\nexport class Broken {\n  @Property()\n  name?: string',
     });
-    const ir = await mikroormParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await mikroormParser.parse({ projectPath: dir })).schema;
     expect(() => parseSchema(ir)).not.toThrow();
   });
 });

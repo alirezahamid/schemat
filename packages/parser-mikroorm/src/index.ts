@@ -6,6 +6,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -389,9 +390,10 @@ function collectEntityFiles(input: ParserInput): string[] {
 // parse()
 // ---------------------------------------------------------------------------
 
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const files = collectEntityFiles(input);
 
+  const warnings: string[] = [];
   const project = new Project({
     useInMemoryFileSystem: false,
     skipAddingFilesFromTsConfig: true,
@@ -403,7 +405,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
       try {
         project.addSourceFileAtPath(f);
       } catch {
-        // skip unreadable files
+        warnings.push(`MikroORM source file "${f}" could not be read; file skipped.`);
       }
     }
   }
@@ -473,8 +475,13 @@ async function parse(input: ParserInput): Promise<IRSchema> {
           const rel = extractRelation(prop, relDec, tableName, classToTable);
           // Skip relations whose target class isn't a known @Entity table — a
           // raw class name would produce a dangling edge to a nonexistent node.
-          if (rel && classToTable.has(relationTargetName(relDec) ?? "")) {
+          const target = relationTargetName(relDec) ?? "";
+          if (rel && classToTable.has(target)) {
             relations.push(rel);
+          } else if (rel) {
+            warnings.push(
+              `MikroORM relation "${tableName}.${prop.getName()}" targets unknown entity "${target || "?"}"; relation skipped.`,
+            );
           }
         }
       }
@@ -490,14 +497,14 @@ async function parse(input: ParserInput): Promise<IRSchema> {
     relations,
   };
 
-  return parseSchema(schema);
+  return { schema: parseSchema(schema), warnings };
 }
 
-export const mikroormParser: SchemaParser = {
+export const mikroormParser = {
   name: "mikroorm",
   detect,
   parse,
   watchTargets: (projectPath) => [projectPath],
-};
+} satisfies SchemaParser;
 
 export default mikroormParser;

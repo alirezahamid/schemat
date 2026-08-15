@@ -7,6 +7,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -459,7 +460,7 @@ function collectEntityFiles(input: ParserInput): string[] {
   return all.filter((f) => f.endsWith(".entity.ts") || fileHasEntityDecorator(f));
 }
 
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const files = collectEntityFiles(input);
 
   const project = new Project({
@@ -478,6 +479,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   const tables: Table[] = [];
   const relations: Relation[] = [];
   const enumMap = new Map<string, Enum>();
+  const warnings: string[] = [];
 
   // Pre-scan every source file for `enum X { ... }` declarations so that
   // `@Column({ type:'enum', enum: X })` can resolve X's members statically.
@@ -541,7 +543,12 @@ async function parse(input: ParserInput): Promise<IRSchema> {
             // table (target in an unparsed file or a non-@Entity class).
             const rel = extracted.relation;
             const resolved = classToTable.get(rel.toTable);
-            if (!resolved) continue;
+            if (!resolved) {
+              warnings.push(
+                `TypeORM relation "${cls.getName() ?? tableName}.${prop.getName()}" targets unresolved entity "${rel.toTable}"; relation skipped.`,
+              );
+              continue;
+            }
             rel.toTable = resolved;
             relations.push(rel);
           }
@@ -564,7 +571,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   };
 
   // Validate against the canonical core schema before returning.
-  return parseSchema(schema);
+  return { schema: parseSchema(schema), warnings };
 }
 
 // ---------------------------------------------------------------------------

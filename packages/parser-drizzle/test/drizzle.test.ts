@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { afterAll, describe, expect, it } from "vitest";
 
+import { normalizeParserOutput } from "@schemat/core";
 import type { IRSchema } from "@schemat/core";
 import { drizzleParser } from "../src/index";
 
@@ -98,7 +99,9 @@ describe("drizzleParser", () => {
 
   it("parses tables, columns, enums and relations from a pg schema", async () => {
     const dir = await makeProject({ "src/schema.ts": PG_SCHEMA });
-    const ir: IRSchema = await drizzleParser.parse({ projectPath: dir });
+    const ir: IRSchema = normalizeParserOutput(
+      await drizzleParser.parse({ projectPath: dir }),
+    ).schema;
 
     expect(ir.version).toBe(1);
 
@@ -168,7 +171,7 @@ describe("drizzleParser", () => {
       });
     `;
     const dir = await makeProject({ "src/schema.ts": schema });
-    const ir = await drizzleParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await drizzleParser.parse({ projectPath: dir })).schema;
     const notes = ir.tables.find((t) => t.name === "notes");
     expect(notes.columns.map((c) => c.name).sort()).toEqual(["body", "id"]);
     expect(notes.columns.find((c) => c.name === "id")?.isPrimaryKey).toBe(true);
@@ -182,7 +185,7 @@ describe("drizzleParser", () => {
       export const b = sqliteTable('b', { id: integer('id').primaryKey(), label: text('label') });
     `;
     const dir = await makeProject({ "src/schema.ts": schema });
-    const ir = await drizzleParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await drizzleParser.parse({ projectPath: dir })).schema;
     expect(ir.tables.map((t) => t.name).sort()).toEqual(["a", "b"]);
     expect(ir.tables.find((t) => t.name === "a")?.columns[0].type).toBe("int");
   });
@@ -196,13 +199,15 @@ describe("drizzleParser", () => {
       // A decoy conventional file that should be ignored when files is set.
       "src/schema.ts": PG_SCHEMA,
     });
-    const ir = await drizzleParser.parse({ projectPath: dir, files: ["weird/place.ts"] });
+    const ir = normalizeParserOutput(
+      await drizzleParser.parse({ projectPath: dir, files: ["weird/place.ts"] }),
+    ).schema;
     expect(ir.tables.map((t) => t.name)).toEqual(["t"]);
   });
 
   it("returns an empty-but-valid IR for an empty schema file", async () => {
     const dir = await makeProject({ "src/schema.ts": "" });
-    const ir = await drizzleParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await drizzleParser.parse({ projectPath: dir })).schema;
     expect(ir).toEqual({ version: 1, tables: [], enums: [], relations: [] });
   });
 
@@ -214,7 +219,7 @@ describe("drizzleParser", () => {
       export const broken = pgTable('broken', { id: serial('id').primaryKey(
     `;
     const dir = await makeProject({ "src/schema.ts": schema });
-    const ir = await drizzleParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await drizzleParser.parse({ projectPath: dir })).schema;
     // Must not throw; the valid table is recovered.
     expect(ir.tables.some((t) => t.name === "ok")).toBe(true);
     expect(ir.version).toBe(1);

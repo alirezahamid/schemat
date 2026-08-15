@@ -1,4 +1,5 @@
 import path from "node:path";
+import { normalizeParserOutput } from "@schemat/core";
 import { detectParser, noSchemaMessage } from "../schema-source";
 import { startServer } from "../server";
 import { watchSchema } from "../watch";
@@ -22,7 +23,9 @@ export async function runDev(options: DevOptions): Promise<void> {
     return;
   }
 
-  const schema = await parser.parse({ projectPath });
+  const initial = normalizeParserOutput(await parser.parse({ projectPath }));
+  const schema = initial.schema;
+  for (const warning of initial.warnings) console.error(`Warning: ${warning}`);
   const server = await startServer(schema, options.port, projectPath);
 
   const url = `http://localhost:${server.port}`;
@@ -32,7 +35,8 @@ export async function runDev(options: DevOptions): Promise<void> {
   const watcher = watchSchema(
     parser,
     projectPath,
-    (next) => {
+    (next, warnings) => {
+      for (const warning of warnings) console.error(`Warning: ${warning}`);
       server.broadcast(next);
       console.log(
         `  ↻ schema reloaded (${next.tables.length} tables, ${next.relations.length} relations)`,

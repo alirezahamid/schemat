@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { IRSchema } from "@schemat/core";
+import { IRSchema, normalizeParserOutput } from "@schemat/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseSql, sqlParser } from "../src/index";
 
@@ -138,7 +138,7 @@ describe("sql parser detect + parse from disk", () => {
   });
 
   it("parses the file into valid IR", async () => {
-    const ir2 = await sqlParser.parse({ projectPath: dir });
+    const ir2 = normalizeParserOutput(await sqlParser.parse({ projectPath: dir })).schema;
     expect(() => IRSchema.parse(ir2)).not.toThrow();
     expect(ir2.tables).toHaveLength(3);
     expect(ir2.relations).toHaveLength(2);
@@ -389,5 +389,84 @@ describe("`key` / `index` as column names (B1 regression)", () => {
         toTable: "digests",
       }),
     );
+  });
+
+  it("warns for CHECK constraints and genuinely unsupported statements", async () => {
+    const d = await mkdtemp(path.join(tmpdir(), "sql-warning-"));
+    const file = path.join(d, "schema.sql");
+    await writeFile(
+      file,
+      "CREATE TABLE users (id INT, CHECK (id > 0)); LOCK TABLE users IN ACCESS EXCLUSIVE MODE;",
+    );
+    try {
+      const result = await sqlParser.parse({ projectPath: d, files: [file] });
+      expect("schema" in result ? result.warnings : []).toEqual([
+        'SQL CHECK constraint on table "users" is not represented; constraint skipped.',
+        'Unsupported SQL statement "LOCK TABLE users IN ACCESS EXCLUSIVE MODE"; statement skipped.',
+      ]);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("unmatched-statement noise control (B2)", () => {
+  it("does not warn for ordinary pg_dump plumbing", () => {
+    const warnings: string[] = [];
+    parseSql(
+      [
+        "SET statement_timeout = 0;",
+        "SELECT pg_catalog.set_config('search_path', '', false);",
+        "CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA public;",
+        "COMMENT ON EXTENSION citext IS 'case-insensitive strings';",
+        "CREATE SCHEMA public;",
+        "CREATE SEQUENCE users_id_seq;",
+        "CREATE VIEW active_users AS SELECT * FROM users;",
+        "CREATE UNIQUE INDEX users_email_index ON public.users USING btree (email);",
+        "CREATE TRIGGER t BEFORE INSERT ON public.users FOR EACH ROW EXECUTE PROCEDURE f();",
+        "ALTER TABLE public.users OWNER TO postgres;",
+        "ALTER FUNCTION public.f() OWNER TO postgres;",
+        "GRANT ALL ON SCHEMA public TO postgres;",
+        "REVOKE ALL ON SCHEMA public FROM PUBLIC;",
+        "INSERT INTO public.schema_migrations (version) VALUES (1);",
+        "CREATE TABLE users (id INT PRIMARY KEY, email TEXT);",
+      ].join("\n"),
+      warnings,
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("treats a dollar-quoted body as one statement, not fragments", () => {
+    const warnings: string[] = [];
+    const ir = parseSql(
+      [
+        "CREATE FUNCTION bump() RETURNS trigger LANGUAGE plpgsql AS $$",
+        "BEGIN",
+        "  NEW.updated_at = now();",
+        "  RETURN NEW;",
+        "END",
+        "$$;",
+        "CREATE TABLE posts (id INT PRIMARY KEY);",
+      ].join("\n"),
+      warnings,
+    );
+    expect(warnings).toEqual([]);
+    expect(ir.tables.map((t) => t.name)).toEqual(["posts"]);
+  });
+
+  it("aggregates repeated unsupported statements instead of one warning each", () => {
+    const warnings: string[] = [];
+    parseSql(
+      [
+        "LOCK TABLE a IN ACCESS EXCLUSIVE MODE;",
+        "LOCK TABLE b IN ACCESS EXCLUSIVE MODE;",
+        "LOCK TABLE c IN ACCESS EXCLUSIVE MODE;",
+      ].join("\n"),
+      warnings,
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("3 LOCK statements skipped");
+    // Examples are capped, so the third statement is not echoed.
+    expect(warnings[0]).not.toContain("LOCK TABLE c");
   });
 });

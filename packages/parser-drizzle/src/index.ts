@@ -17,6 +17,7 @@ import type {
   Enum,
   IRSchema,
   ParserInput,
+  ParserResult,
   Relation,
   SchemaParser,
   Table,
@@ -312,7 +313,7 @@ function collectFromSourceFile(sf: SourceFile, rawTables: RawTable[], enums: Enu
   }
 }
 
-function resolveRelations(rawTables: RawTable[]): Relation[] {
+function resolveRelations(rawTables: RawTable[], warnings: string[] = []): Relation[] {
   // Map JS variable name -> resolved table (name + column lookup).
   const byVar = new Map<string, RawTable>();
   for (const t of rawTables) byVar.set(t.varName, t);
@@ -324,7 +325,12 @@ function resolveRelations(rawTables: RawTable[]): Relation[] {
       // Skip refs whose target table wasn't parsed — emitting a guessed
       // `toTable`/`toColumns` would point at a table that may not exist or use
       // the wrong db name/column. Only emit relations we can fully resolve.
-      if (!target) continue;
+      if (!target) {
+        warnings.push(
+          `Drizzle reference "${t.tableName}.${ref.fromColumn}" targets unknown table variable "${ref.toVarName}"; relation skipped.`,
+        );
+        continue;
+      }
       const toTable = target.tableName;
       const toColumn = target.propToDbCol.get(ref.toPropKey) ?? ref.toPropKey;
       const cardinality: Cardinality = ref.ownerUnique ? "one-to-one" : "one-to-many";
@@ -420,7 +426,7 @@ async function detect(projectPath: string): Promise<boolean> {
   return false;
 }
 
-async function parse(input: ParserInput): Promise<IRSchema> {
+async function parse(input: ParserInput): Promise<ParserResult> {
   const files = await locateSchemaFiles(input);
 
   const project = new Project({
@@ -432,12 +438,14 @@ async function parse(input: ParserInput): Promise<IRSchema> {
 
   const rawTables: RawTable[] = [];
   const enums: Enum[] = [];
+  const warnings: string[] = [];
 
   for (const file of files) {
     let text: string;
     try {
       text = await readFile(file, "utf8");
     } catch {
+      warnings.push(`Drizzle schema file "${file}" could not be read; file skipped.`);
       continue;
     }
     // createSourceFile never type-checks or executes — pure static parse. A
@@ -452,7 +460,7 @@ async function parse(input: ParserInput): Promise<IRSchema> {
     columns: t.columns,
     comment: null,
   }));
-  const relations = resolveRelations(rawTables);
+  const relations = resolveRelations(rawTables, warnings);
 
   const schema: IRSchema = {
     version: IR_VERSION,
@@ -462,10 +470,10 @@ async function parse(input: ParserInput): Promise<IRSchema> {
   };
 
   // Validate against the canonical contract before returning.
-  return parseSchema(schema);
+  return { schema: parseSchema(schema), warnings };
 }
 
-export const drizzleParser: SchemaParser = {
+export const drizzleParser = {
   name: "drizzle",
   detect,
   parse,
@@ -473,6 +481,6 @@ export const drizzleParser: SchemaParser = {
     ...COMMON_SCHEMA_FILES.map((rel) => join(projectPath, rel)),
     ...DRIZZLE_CONFIG_FILES.map((rel) => join(projectPath, rel)),
   ],
-};
+} satisfies SchemaParser;
 
 export default drizzleParser;

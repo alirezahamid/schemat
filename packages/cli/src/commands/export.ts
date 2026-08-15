@@ -2,7 +2,7 @@ import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { renderMermaid, renderSvg } from "@schemat/render/node";
 import { loadLayout } from "../layout";
-import { noSchemaMessage, resolveSchema } from "../schema-source";
+import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 
 export type ExportFormat = "svg" | "mermaid";
 
@@ -59,7 +59,9 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const schema = await resolveSchema(projectPath);
+  const result = await resolveSchemaResult(projectPath);
+  const schema = result?.schema ?? null;
+  for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!schema) {
     console.error(await noSchemaMessage(projectPath));
     process.exitCode = 1;

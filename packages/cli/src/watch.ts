@@ -1,3 +1,4 @@
+import { normalizeParserOutput } from "@schemat/core";
 import type { IRSchema, SchemaParser } from "@schemat/core";
 import chokidar from "chokidar";
 
@@ -28,7 +29,7 @@ export interface SchemaWatcher {
 export function watchSchema(
   parser: SchemaParser,
   projectPath: string,
-  onChange: (schema: IRSchema) => void,
+  onChange: (schema: IRSchema, warnings: string[]) => void,
   onError: (err: unknown) => void,
 ): SchemaWatcher {
   const watchTargets = resolveWatchTargets(parser, projectPath);
@@ -49,10 +50,11 @@ export function watchSchema(
       const parseId = ++latestParseId;
       parser
         .parse({ projectPath })
-        .then((schema) => {
+        .then((output) => {
           // Drop stale results: only the most recently started parse wins.
           if (disposed || parseId !== latestParseId) return;
-          onChange(schema);
+          const { schema, warnings } = normalizeParserOutput(output);
+          onChange(schema, warnings);
         })
         .catch((err) => {
           if (disposed || parseId !== latestParseId) return;

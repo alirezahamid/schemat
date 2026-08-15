@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { IRSchema } from "@schemat/core";
+import { IRSchema, normalizeParserOutput } from "@schemat/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { prismaParser } from "../src/index";
 
@@ -32,14 +32,18 @@ describe("prisma parser", () => {
   });
 
   it("parses the example schema into valid IR", async () => {
-    const ir = await prismaParser.parse({ projectPath: exampleProject });
+    const ir = normalizeParserOutput(
+      await prismaParser.parse({ projectPath: exampleProject }),
+    ).schema;
     expect(() => IRSchema.parse(ir)).not.toThrow();
     expect(ir.tables.map((t) => t.name).sort()).toEqual(["Post", "Profile", "Tag", "User"]);
     expect(ir.enums.map((e) => e.name).sort()).toEqual(["PostStatus", "Role"]);
   });
 
   it("maps columns with types, pk, nullability, defaults, comments", async () => {
-    const ir = await prismaParser.parse({ projectPath: exampleProject });
+    const ir = normalizeParserOutput(
+      await prismaParser.parse({ projectPath: exampleProject }),
+    ).schema;
     const user = ir.tables.find((t) => t.name === "User");
     expect(user?.comment).toBe("An application user.");
 
@@ -58,7 +62,9 @@ describe("prisma parser", () => {
   });
 
   it("extracts a one-to-many relation (Post.author -> User)", async () => {
-    const ir = await prismaParser.parse({ projectPath: exampleProject });
+    const ir = normalizeParserOutput(
+      await prismaParser.parse({ projectPath: exampleProject }),
+    ).schema;
     const rel = ir.relations.find((r) => r.fromTable === "Post" && r.toTable === "User");
     expect(rel).toMatchObject({
       fromColumns: ["authorId"],
@@ -68,13 +74,17 @@ describe("prisma parser", () => {
   });
 
   it("extracts a one-to-one relation (Profile.user -> User)", async () => {
-    const ir = await prismaParser.parse({ projectPath: exampleProject });
+    const ir = normalizeParserOutput(
+      await prismaParser.parse({ projectPath: exampleProject }),
+    ).schema;
     const rel = ir.relations.find((r) => r.fromTable === "Profile" && r.toTable === "User");
     expect(rel?.cardinality).toBe("one-to-one");
   });
 
   it("extracts the Post<->Tag many-to-many exactly once", async () => {
-    const ir = await prismaParser.parse({ projectPath: exampleProject });
+    const ir = normalizeParserOutput(
+      await prismaParser.parse({ projectPath: exampleProject }),
+    ).schema;
     const m2m = ir.relations.filter((r) => r.cardinality === "many-to-many");
     expect(m2m).toHaveLength(1);
     const names = [m2m[0]?.fromTable, m2m[0]?.toTable].sort();
@@ -107,7 +117,7 @@ model User {
 }
 `,
     });
-    const ir = await prismaParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
     expect(() => IRSchema.parse(ir)).not.toThrow();
     expect(ir.tables.map((t) => t.name)).toEqual(["User"]);
   });
@@ -124,7 +134,7 @@ model Account {
 }
 `,
     });
-    const ir = await prismaParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
     expect(ir.tables.map((t) => t.name)).toEqual(["Account"]);
   });
 
@@ -154,7 +164,7 @@ model Post {
 `,
     });
     expect(await prismaParser.detect(dir)).toBe(true);
-    const ir = await prismaParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
     expect(ir.tables.map((t) => t.name).sort()).toEqual(["Post", "User"]);
     // Relation defined across two files resolves correctly.
     const rel = ir.relations.find((r) => r.fromTable === "Post" && r.toTable === "User");
@@ -174,7 +184,7 @@ model Widget {
 }
 `,
     });
-    const ir = await prismaParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
     expect(ir.tables.map((t) => t.name)).toEqual(["Widget"]);
   });
 
@@ -191,7 +201,7 @@ model Gadget {
 `,
     });
     // Without comment-stripping this would fail getDMMF with "url is missing".
-    const ir = await prismaParser.parse({ projectPath: dir });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
     expect(ir.tables.map((t) => t.name)).toEqual(["Gadget"]);
   });
 });
