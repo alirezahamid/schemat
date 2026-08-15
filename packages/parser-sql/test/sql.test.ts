@@ -510,6 +510,35 @@ describe("unmatched-statement noise control (B2)", () => {
     ]);
   });
 
+  it("does not treat dollar-tag text inside double-quoted identifiers as dollar quotes", () => {
+    const cases = [
+      'CREATE TABLE t ("$func$" text);',
+      'CREATE TABLE "$func$" (id int);',
+      'CREATE TABLE t ("prefix$func$suffix" text);',
+      'CREATE TABLE t ("$$" text);',
+      'CREATE TABLE t ("a""$func$""b" text);',
+    ];
+    for (const sql of cases) {
+      const warnings: string[] = [];
+      const ir = parseSql(sql, warnings);
+      expect(warnings, sql).toEqual([]);
+      expect(ir.tables.length, sql).toBeGreaterThan(0);
+    }
+  });
+
+  it("still warns on genuine unterminated dollar quotes outside quotes", () => {
+    const bare: string[] = [];
+    parseSql("CREATE FUNCTION broken() RETURNS void AS $$\nBEGIN;", bare);
+    expect(bare).toEqual([
+      'Unterminated SQL dollar quote "$$" opened at line 1; input from that point on could not be parsed.',
+    ]);
+    const tagged: string[] = [];
+    parseSql("CREATE FUNCTION broken() RETURNS void AS $func$\nBEGIN;", tagged);
+    expect(tagged).toEqual([
+      'Unterminated SQL dollar quote "$func$" opened at line 1; input from that point on could not be parsed.',
+    ]);
+  });
+
   it("aggregates repeated unsupported statements instead of one warning each", () => {
     const warnings: string[] = [];
     parseSql(

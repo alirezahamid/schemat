@@ -97,6 +97,28 @@ function findDollarEnd(sql: string, from: number, tag: string): number | null {
   return close === -1 ? null : close + tag.length;
 }
 
+/** Copy a single- or double-quoted span (handles doubled-quote escapes). */
+function copyQuoted(sql: string, i: number, quote: "'" | '"'): [string, number] {
+  const n = sql.length;
+  let out = sql[i] ?? "";
+  i++;
+  while (i < n) {
+    const ch = sql[i] ?? "";
+    out += ch;
+    if (ch === quote) {
+      if (sql[i + 1] === quote) {
+        out += sql[i + 1] ?? "";
+        i += 2;
+        continue;
+      }
+      i++;
+      break;
+    }
+    i++;
+  }
+  return [out, i];
+}
+
 /** Strip `--` line comments and `/* *\/` block comments, preserving strings. */
 function stripComments(sql: string, warnings: string[]): string {
   let out = "";
@@ -105,6 +127,13 @@ function stripComments(sql: string, warnings: string[]): string {
   while (i < n) {
     const ch = sql[i];
     const next = sql[i + 1];
+    // double-quoted identifier: opaque before dollar-tag scan (Postgres `"$func$"`)
+    if (ch === '"') {
+      const [chunk, nextI] = copyQuoted(sql, i, '"');
+      out += chunk;
+      i = nextI;
+      continue;
+    }
     // dollar-quoted body ($$ ... $$ / $tag$ ... $tag$): opaque, copied verbatim
     const dollarTag = matchDollarTag(sql, i);
     if (dollarTag) {
@@ -121,21 +150,9 @@ function stripComments(sql: string, warnings: string[]): string {
     }
     // single-quoted string literal
     if (ch === "'") {
-      out += ch;
-      i++;
-      while (i < n) {
-        out += sql[i];
-        if (sql[i] === "'") {
-          if (sql[i + 1] === "'") {
-            out += sql[i + 1];
-            i += 2;
-            continue;
-          }
-          i++;
-          break;
-        }
-        i++;
-      }
+      const [chunk, nextI] = copyQuoted(sql, i, "'");
+      out += chunk;
+      i = nextI;
       continue;
     }
     // line comment
@@ -165,6 +182,13 @@ function splitStatements(sql: string): string[] {
   const n = sql.length;
   while (i < n) {
     const ch = sql[i];
+    // double-quoted identifier first so `"$func$"` is not a dollar tag
+    if (ch === '"') {
+      const [chunk, nextI] = copyQuoted(sql, i, '"');
+      cur += chunk;
+      i = nextI;
+      continue;
+    }
     // A dollar-quoted body is one opaque unit — semicolons inside it must not
     // split the enclosing CREATE FUNCTION into fragments.
     const dollarTag = matchDollarTag(sql, i);
@@ -175,21 +199,9 @@ function splitStatements(sql: string): string[] {
       continue;
     }
     if (ch === "'") {
-      cur += ch;
-      i++;
-      while (i < n) {
-        cur += sql[i];
-        if (sql[i] === "'") {
-          if (sql[i + 1] === "'") {
-            cur += sql[i + 1];
-            i += 2;
-            continue;
-          }
-          i++;
-          break;
-        }
-        i++;
-      }
+      const [chunk, nextI] = copyQuoted(sql, i, "'");
+      cur += chunk;
+      i = nextI;
       continue;
     }
     if (ch === "(") depth++;
