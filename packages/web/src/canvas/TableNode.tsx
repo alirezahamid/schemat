@@ -78,7 +78,10 @@ function ColumnRow({ col }: { col: DisplayColumn }) {
         {col.nullable ? "?" : ""}
       </span>
       <span className="col-meta">
-        <span className="col-type">{col.type}</span>
+        <span className="col-type">
+          {col.rawType ?? col.type}
+          {col.isList ? "[]" : ""}
+        </span>
         {col.isPrimaryKey ? <Badge text="PK" title="Primary key" /> : null}
         {col.isForeignKey ? <Badge text="FK" title="Foreign key" /> : null}
         {col.isUnique && !col.isPrimaryKey ? <Badge text="U" title="Unique" /> : null}

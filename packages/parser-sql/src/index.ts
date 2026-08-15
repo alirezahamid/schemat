@@ -11,71 +11,13 @@ import type {
   SchemaParser,
   Table,
 } from "@schemat/core";
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 
 /* -------------------------------------------------------------------------- */
 /* Type mapping                                                               */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Map a raw SQL type (already uppercased, base name only) to a canonical IR
- * type string. Falls back to the lowercased raw type when unknown.
- */
-function canonicalType(rawType: string): string {
-  const base = rawType.trim().toUpperCase();
-  switch (base) {
-    case "VARCHAR":
-    case "CHARACTER VARYING":
-    case "TEXT":
-    case "CHAR":
-    case "CHARACTER":
-    case "NVARCHAR":
-    case "NCHAR":
-    case "CITEXT":
-      return "string";
-    case "INT":
-    case "INTEGER":
-    case "BIGINT":
-    case "SMALLINT":
-    case "TINYINT":
-    case "SERIAL":
-    case "BIGSERIAL":
-    case "SMALLSERIAL":
-    case "INT2":
-    case "INT4":
-    case "INT8":
-      return "int";
-    case "BOOLEAN":
-    case "BOOL":
-      return "boolean";
-    case "TIMESTAMP":
-    case "TIMESTAMPTZ":
-    case "TIMESTAMP WITH TIME ZONE":
-    case "TIMESTAMP WITHOUT TIME ZONE":
-    case "DATE":
-    case "DATETIME":
-    case "TIME":
-    case "TIMETZ":
-      return "datetime";
-    case "NUMERIC":
-    case "DECIMAL":
-    case "REAL":
-    case "DOUBLE":
-    case "DOUBLE PRECISION":
-    case "FLOAT":
-    case "FLOAT4":
-    case "FLOAT8":
-    case "MONEY":
-      return "float";
-    case "UUID":
-      return "string";
-    case "JSON":
-    case "JSONB":
-      return "json";
-    default:
-      return base.toLowerCase();
-  }
-}
+/* type mapping: mapToCanonicalType from @schemat/core */
 
 /* -------------------------------------------------------------------------- */
 /* Preprocessing                                                              */
@@ -220,13 +162,9 @@ function splitStatements(sql: string): string[] {
   return stmts;
 }
 
-/** Strip surrounding quotes/backticks/brackets and schema prefix. */
-function unquote(ident: string): string {
-  let id = ident.trim();
-  // take last dotted segment (drop schema/db prefix), respecting quotes
-  const parts = splitDotted(id);
-  id = parts[parts.length - 1] ?? id;
-  id = id.trim();
+/** Strip surrounding quotes/backticks/brackets from one identifier segment. */
+function unquoteSegment(ident: string): string {
+  const id = ident.trim();
   if ((id.startsWith('"') && id.endsWith('"')) || (id.startsWith("`") && id.endsWith("`"))) {
     return id.slice(1, -1);
   }
@@ -234,6 +172,25 @@ function unquote(ident: string): string {
     return id.slice(1, -1);
   }
   return id;
+}
+
+/**
+ * Unquote a possibly schema-qualified identifier.
+ * Multi-segment names become `schema.table`. The default `public` schema is
+ * stripped so `public.users` and bare `users` still match, while `auth.users`
+ * stays distinct from `users`.
+ */
+function unquote(ident: string): string {
+  const parts = splitDotted(ident.trim())
+    .map(unquoteSegment)
+    .filter((p) => p.length > 0);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0] ?? "";
+  // drop leading "public" (case-insensitive) only
+  if ((parts[0] ?? "").toLowerCase() === "public") {
+    return parts.slice(1).join(".");
+  }
+  return parts.join(".");
 }
 
 /** Split `schema.table` on dots, but not dots inside quotes. */
@@ -483,12 +440,20 @@ function parseColumnDef(def: string): ColumnParseResult | null {
 
   const fk = parseInlineReferences(def);
 
+  // ARRAY suffix / trailing [] → list column
+  const arrayMatch =
+    /\bARRAY\b/i.test(rest) || /\[\s*\]/.test(typeMatch[0] ?? "") || /\[\s*\]/.test(rest);
+  // Also catch `int[]` where [] was absorbed into type token — rare with our regex
+  const rawFull = (typeMatch[0] ?? rawType).trim();
+  const isList = arrayMatch || /\[\s*\]\s*$/.test(rawFull);
   const column: Column = {
     name,
-    type: canonicalType(rawType),
+    type: mapToCanonicalType(rawType),
+    rawType: rawFull.replace(/\s+/g, " "),
     nullable: inlinePk ? false : nullable,
     isPrimaryKey: inlinePk,
     isUnique: inlineUnique || inlinePk,
+    isList,
     default: defaultVal,
     comment: null,
   };

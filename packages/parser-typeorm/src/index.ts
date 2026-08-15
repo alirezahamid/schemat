@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 import type {
   Cardinality,
   Column,
@@ -214,8 +214,8 @@ function extractColumn(
 
   const isPrimaryKey = PRIMARY_DECORATORS.has(decName);
 
-  // nullable / unique
-  const nullable = getPropBool(opts, "nullable") ?? false;
+  // nullable / unique — decorator wins; otherwise TS `prop?:` means nullable.
+  const nullable = getPropBool(opts, "nullable") ?? prop.hasQuestionToken();
   const unique = getPropBool(opts, "unique") ?? false;
 
   // default -> canonical string form or null
@@ -236,10 +236,11 @@ function extractColumn(
     // enum: SomeEnum  OR  enum: ['a','b']
     const enumProp = opts?.getProperty("enum");
     const { enumName, values } = resolveEnum(opts, enumProp, entityName, name);
-    type = enumName;
+    type = "enum"; // closed canonical; rawType below stores enumName
     // Prefer inline array values; otherwise look up a resolved enum decl.
     const resolved = values ?? enumValues.get(enumName);
     capturedEnum = { name: enumName, values: resolved ?? [] };
+    // Stash enum name for rawType via capturedEnum.name
   } else if (declaredType) {
     type = declaredType;
   } else if (decName === "PrimaryGeneratedColumn") {
@@ -258,13 +259,16 @@ function extractColumn(
     type = tsTypeToColumnType(prop);
   }
 
+  const rawType = capturedEnum?.name ?? type;
   return {
     column: {
       name,
-      type,
+      type: capturedEnum ? ("enum" as const) : mapToCanonicalType(type),
+      rawType,
       nullable,
       isPrimaryKey,
       isUnique: unique,
+      isList: false,
       default: defaultVal,
       comment: unquote(getPropText(opts, "comment")) ?? null,
     },
@@ -301,10 +305,18 @@ function resolveEnum(
   return { enumName: refName };
 }
 
+/**
+ * Map a TS property type annotation to a known column type string.
+ * Unknown / complex TS text must NOT leak into IR `type`.
+ */
 function tsTypeToColumnType(prop: PropertyDeclaration): string {
   const tn = prop.getTypeNode();
   if (!tn) return DEFAULT_COLUMN_TYPE;
-  const text = tn.getText();
+  const text = tn
+    .getText()
+    .replace(/\s*\|\s*null\b/g, "")
+    .replace(/\s*\|\s*undefined\b/g, "")
+    .trim();
   switch (text) {
     case "number":
       return "number";
@@ -314,8 +326,12 @@ function tsTypeToColumnType(prop: PropertyDeclaration): string {
       return "timestamp";
     case "string":
       return "string";
+    case "bigint":
+      return "bigint";
+    case "Buffer":
+      return "bytes";
     default:
-      return text;
+      return DEFAULT_COLUMN_TYPE;
   }
 }
 
@@ -350,6 +366,18 @@ function hasDecorator(prop: PropertyDeclaration, name: string): boolean {
   return prop.getDecorators().some((d) => d.getName() === name);
 }
 
+/** FK column name: `@JoinColumn({ name })` when present, else `<prop>Id`. */
+function joinColumnName(prop: PropertyDeclaration): string {
+  const joinDec = prop.getDecorators().find((d) => d.getName() === "JoinColumn");
+  if (joinDec) {
+    const positional = getFirstStringArg(joinDec);
+    if (positional) return positional;
+    const named = unquote(getPropText(getOptionsObject(joinDec), "name"));
+    if (named) return named;
+  }
+  return `${prop.getName()}Id`;
+}
+
 function extractRelation(
   prop: PropertyDeclaration,
   relDec: Decorator,
@@ -362,8 +390,8 @@ function extractRelation(
   const propName = prop.getName();
   const relName = `${thisTable}_${propName}`;
 
-  // Synthetic FK column convention: `<relationProp>Id` -> target `id`.
-  const syntheticFk = `${propName}Id`;
+  // Prefer explicit @JoinColumn name; else TypeORM default `<prop>Id`.
+  const fkColumn = joinColumnName(prop);
 
   switch (kind) {
     case "ManyToOne": {
@@ -373,7 +401,7 @@ function extractRelation(
         relation: {
           name: relName,
           fromTable: thisTable,
-          fromColumns: [syntheticFk],
+          fromColumns: [fkColumn],
           toTable: target,
           toColumns: ["id"],
           cardinality: "one-to-many" as Cardinality,
@@ -396,7 +424,7 @@ function extractRelation(
         relation: {
           name: relName,
           fromTable: thisTable,
-          fromColumns: [syntheticFk],
+          fromColumns: [fkColumn],
           toTable: target,
           toColumns: ["id"],
           cardinality: "one-to-one" as Cardinality,

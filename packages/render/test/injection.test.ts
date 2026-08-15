@@ -5,7 +5,7 @@ import { renderSvg } from "../src/render-node";
 
 /** A hostile IR: names/types/labels stuffed with injection payloads. */
 const evil: IRSchema = {
-  version: 1,
+  version: 2,
   tables: [
     {
       name: 'User"; DROP\nerDiagram evil',
@@ -13,19 +13,23 @@ const evil: IRSchema = {
       columns: [
         {
           name: 'id" }\n  Evil { x y',
-          type: "<img src=x onerror=alert(1)>",
+          type: "string",
+          rawType: "<img src=x onerror=alert(1)>",
           nullable: false,
           isPrimaryKey: true,
           isUnique: false,
+          isList: false,
           default: null,
           comment: null,
         },
         {
           name: "normal",
-          type: "String",
+          type: "string",
+          rawType: "String",
           nullable: true,
           isPrimaryKey: false,
           isUnique: true,
+          isList: false,
           default: null,
           comment: null,
         },
@@ -109,7 +113,7 @@ describe("renderSvg — injection safety", () => {
   });
 
   it("renders an empty schema to a valid small SVG", async () => {
-    const empty: IRSchema = { version: 1, tables: [], enums: [], relations: [] };
+    const empty: IRSchema = { version: 2, tables: [], enums: [], relations: [] };
     const svg = await renderSvg(empty);
     expect(svg).toMatch(/<svg[^>]*width="\d+"/);
     expect(svg.includes("NaN")).toBe(false);

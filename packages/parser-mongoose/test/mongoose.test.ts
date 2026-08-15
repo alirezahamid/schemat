@@ -105,7 +105,7 @@ describe("mongooseParser.parse — User model", () => {
   });
 
   it("produces a valid IR envelope", () => {
-    expect(ir.version).toBe(1);
+    expect(ir.version).toBe(2);
     expect(Array.isArray(ir.tables)).toBe(true);
     expect(Array.isArray(ir.enums)).toBe(true);
     expect(Array.isArray(ir.relations)).toBe(true);
@@ -121,14 +121,14 @@ describe("mongooseParser.parse — User model", () => {
     const id = t.columns.find((c) => c.name === "_id");
     expect(id).toBeDefined();
     expect(id.isPrimaryKey).toBe(true);
-    expect(id.type).toBe("ObjectId");
+    expect(id.type).toBe("string");
     expect(id.nullable).toBe(false);
   });
 
   it("reads required + unique + type flags", () => {
     const t = ir.tables.find((t) => t.name === "User");
     const username = t.columns.find((c) => c.name === "username");
-    expect(username.type).toBe("String");
+    expect(username.type).toBe("string");
     expect(username.nullable).toBe(false); // required
     expect(username.isUnique).toBe(true);
   });
@@ -136,7 +136,7 @@ describe("mongooseParser.parse — User model", () => {
   it("handles shorthand form (age: Number)", () => {
     const t = ir.tables.find((t) => t.name === "User");
     const age = t.columns.find((c) => c.name === "age");
-    expect(age.type).toBe("Number");
+    expect(age.type).toBe("int");
     expect(age.nullable).toBe(true);
     expect(age.isUnique).toBe(false);
   });
@@ -146,7 +146,7 @@ describe("mongooseParser.parse — User model", () => {
     const role = t.columns.find((c) => c.name === "role");
     expect(role.default).toBe("member");
     const active = t.columns.find((c) => c.name === "active");
-    expect(active.type).toBe("Boolean");
+    expect(active.type).toBe("boolean");
     expect(active.default).toBe("true");
   });
 
@@ -156,7 +156,8 @@ describe("mongooseParser.parse — User model", () => {
     expect(e?.values).toEqual(["admin", "member"]);
     const t = ir.tables.find((t) => t.name === "User");
     const role = t.columns.find((c) => c.name === "role");
-    expect(role.type).toBe("User_role");
+    expect(role.type).toBe("enum");
+    expect(role.rawType).toBe("User_role");
   });
 
   it("creates a one-to-many relation for a single ObjectId ref", () => {
@@ -182,7 +183,7 @@ describe("mongooseParser.parse — User model", () => {
   it("collapses nested subdocuments into an Object column (v1 simplification)", () => {
     const t = ir.tables.find((t) => t.name === "User");
     const profile = t.columns.find((c) => c.name === "profile");
-    expect(profile.type).toBe("Object");
+    expect(profile.type).toBe("object");
   });
 
   it("handles array type inside options object and array-form required", async () => {
@@ -294,7 +295,7 @@ describe("mongooseParser.parse — edge cases", () => {
     });
     // Should not throw; parser tolerates malformed input and returns valid IR.
     const ir = normalizeParserOutput(await mongooseParser.parse({ projectPath: dir })).schema;
-    expect(ir.version).toBe(1);
+    expect(ir.version).toBe(2);
     expect(Array.isArray(ir.tables)).toBe(true);
   });
 

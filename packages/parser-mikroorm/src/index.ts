@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 import type {
   Column,
   Enum,
@@ -147,7 +147,11 @@ function arrowReturnIdentifier(node: Node | undefined): string | undefined {
 function tsTypeToColumnType(prop: PropertyDeclaration): string {
   const tn = prop.getTypeNode();
   if (!tn) return DEFAULT_COLUMN_TYPE;
-  const text = tn.getText();
+  const text = tn
+    .getText()
+    .replace(/\s*\|\s*null\b/g, "")
+    .replace(/\s*\|\s*undefined\b/g, "")
+    .trim();
   switch (text) {
     case "number":
       return "number";
@@ -157,8 +161,12 @@ function tsTypeToColumnType(prop: PropertyDeclaration): string {
       return "timestamp";
     case "string":
       return "string";
+    case "bigint":
+      return "bigint";
+    case "Buffer":
+      return "bytes";
     default:
-      return text;
+      return DEFAULT_COLUMN_TYPE;
   }
 }
 
@@ -184,12 +192,15 @@ function readDefault(opts: ObjectLiteralExpression | undefined): string | null {
 function extractPrimaryKey(prop: PropertyDeclaration, dec: Decorator): Column {
   const opts = getOptionsObject(dec);
   const declaredType = unquote(getPropText(opts, "type"));
+  const rawType = declaredType ?? tsTypeToColumnType(prop);
   return {
     name: columnNameFor(opts, prop),
-    type: declaredType ?? tsTypeToColumnType(prop),
+    type: mapToCanonicalType(rawType),
+    rawType,
     nullable: getPropBool(opts, "nullable") ?? false,
     isPrimaryKey: true,
     isUnique: getPropBool(opts, "unique") ?? false,
+    isList: false,
     default: readDefault(opts),
     comment: unquote(getPropText(opts, "comment")) ?? null,
   };
@@ -198,12 +209,15 @@ function extractPrimaryKey(prop: PropertyDeclaration, dec: Decorator): Column {
 function extractProperty(prop: PropertyDeclaration, dec: Decorator): Column {
   const opts = getOptionsObject(dec);
   const declaredType = unquote(getPropText(opts, "type"));
+  const rawType = declaredType ?? tsTypeToColumnType(prop);
   return {
     name: columnNameFor(opts, prop),
-    type: declaredType ?? tsTypeToColumnType(prop),
+    type: mapToCanonicalType(rawType),
+    rawType,
     nullable: getPropBool(opts, "nullable") ?? false,
     isPrimaryKey: false,
     isUnique: getPropBool(opts, "unique") ?? false,
+    isList: false,
     default: readDefault(opts),
     comment: unquote(getPropText(opts, "comment")) ?? null,
   };
@@ -271,10 +285,13 @@ function extractEnum(
   return {
     column: {
       name,
-      type,
+      // Enum columns use closed type "enum"; rawType keeps the enum name.
+      type: capturedEnum ? ("enum" as const) : mapToCanonicalType(type),
+      rawType: type,
       nullable,
       isPrimaryKey: false,
       isUnique: unique,
+      isList: false,
       default: defaultVal,
       comment,
     },

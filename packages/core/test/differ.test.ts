@@ -4,10 +4,12 @@ import { type IRSchema, diff, emptySchema } from "../src/index";
 function col(name: string, over: Partial<IRSchema["tables"][number]["columns"][number]> = {}) {
   return {
     name,
-    type: "string",
+    type: "string" as const,
+    rawType: "string",
     nullable: false,
     isPrimaryKey: false,
     isUnique: false,
+    isList: false,
     default: null,
     comment: null,
     ...over,
@@ -15,7 +17,7 @@ function col(name: string, over: Partial<IRSchema["tables"][number]["columns"][n
 }
 
 const base: IRSchema = {
-  version: 1,
+  version: 2,
   enums: [],
   relations: [],
   tables: [
@@ -26,6 +28,24 @@ const base: IRSchema = {
 describe("differ", () => {
   it("reports no changes for identical schemas", () => {
     expect(diff(base, structuredClone(base))).toEqual([]);
+  });
+
+  it("ignores rawType-only differences (canonical type wins)", () => {
+    const before = structuredClone(base);
+    const after = structuredClone(base);
+    const emailBefore = before.tables[0]?.columns.find((c) => c.name === "email");
+    const emailAfter = after.tables[0]?.columns.find((c) => c.name === "email");
+    if (emailBefore) emailBefore.rawType = "String";
+    if (emailAfter) emailAfter.rawType = "varchar(255)";
+    expect(diff(before, after)).toEqual([]);
+  });
+
+  it("detects isList changes", () => {
+    const after = structuredClone(base);
+    const email = after.tables[0]?.columns.find((c) => c.name === "email");
+    if (email) email.isList = true;
+    const changes = diff(base, after);
+    expect(changes.some((c) => c.kind === "column.changed" && c.column === "email")).toBe(true);
   });
 
   it("detects added, removed, and changed enums", () => {

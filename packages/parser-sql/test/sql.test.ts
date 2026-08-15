@@ -42,7 +42,7 @@ describe("sql parser", () => {
 
   it("produces valid IR that round-trips through parseSchema", () => {
     expect(() => IRSchema.parse(ir)).not.toThrow();
-    expect(ir.version).toBe(1);
+    expect(ir.version).toBe(2);
   });
 
   it("extracts all tables (quoted / schema-prefixed / plain)", () => {
@@ -58,8 +58,8 @@ describe("sql parser", () => {
     expect(created?.type).toBe("datetime");
 
     const posts = ir.tables.find((t) => t.name === "posts");
-    expect(posts?.columns.find((c) => c.name === "id")?.type).toBe("int");
-    expect(posts?.columns.find((c) => c.name === "rating")?.type).toBe("float");
+    expect(posts?.columns.find((c) => c.name === "id")?.type).toBe("bigint");
+    expect(posts?.columns.find((c) => c.name === "rating")?.type).toBe("decimal");
     expect(posts?.columns.find((c) => c.name === "meta")?.type).toBe("json");
     expect(users?.columns.find((c) => c.name === "is_active")?.type).toBe("boolean");
   });
@@ -170,7 +170,11 @@ describe("dump fixtures", () => {
   it("parses a realistic PostgreSQL pg_dump fixture with two-pass ALTER constraints", async () => {
     const ir = parseSql(await readFile(fixturePath("postgresql-pgdump.sql"), "utf8"));
 
-    expect(ir.tables.map((table) => table.name)).toEqual(["users", "posts", "events"]);
+    expect(ir.tables.map((table) => table.name)).toEqual([
+      "app.users",
+      "app.posts",
+      "audit.events",
+    ]);
     expect(countFlags(ir)).toEqual({
       tables: 3,
       primaryKeyColumns: 5,
@@ -178,9 +182,9 @@ describe("dump fixtures", () => {
       relations: 1,
     });
     expect(ir.relations[0]).toMatchObject({
-      fromTable: "posts",
+      fromTable: "app.posts",
       fromColumns: ["tenant_id", "author_id"],
-      toTable: "users",
+      toTable: "app.users",
       toColumns: ["tenant_id", "id"],
     });
     expect(ir.tables.flatMap((table) => table.columns).map((column) => column.name)).not.toContain(
@@ -239,16 +243,16 @@ describe("dump-style constraints", () => {
         FOREIGN KEY (tenant_id, author_id) REFERENCES "app"."users" (tenant_id, id);
     `);
 
-    expect(ir.tables.map((table) => table.name)).toEqual(["users", "posts"]);
+    expect(ir.tables.map((table) => table.name)).toEqual(["app.users", "app.posts"]);
     expect(
       ir.tables[0]?.columns.filter((column) => column.isPrimaryKey).map((column) => column.name),
     ).toEqual(["tenant_id", "id"]);
     expect(ir.tables[0]?.columns.find((column) => column.name === "email")?.isUnique).toBe(true);
     expect(ir.relations).toContainEqual(
       expect.objectContaining({
-        fromTable: "posts",
+        fromTable: "app.posts",
         fromColumns: ["tenant_id", "author_id"],
-        toTable: "users",
+        toTable: "app.users",
         toColumns: ["tenant_id", "id"],
       }),
     );
@@ -553,5 +557,26 @@ describe("unmatched-statement noise control (B2)", () => {
     expect(warnings[0]).toContain("3 LOCK statements skipped");
     // Examples are capped, so the third statement is not echoed.
     expect(warnings[0]).not.toContain("LOCK TABLE c");
+  });
+});
+
+describe("SQL IR fidelity (schema qualify, arrays, rawType)", () => {
+  it("keeps schema.table distinct so auth.users and public.users do not collide", () => {
+    const ir = parseSql(`
+CREATE TABLE auth.users (id int PRIMARY KEY, email text);
+CREATE TABLE billing.users (id int PRIMARY KEY, name text);
+CREATE TABLE users (id int PRIMARY KEY);
+`);
+    expect(ir.tables.map((t) => t.name).sort()).toEqual(["auth.users", "billing.users", "users"]);
+    // public.users collapses to bare users (default schema)
+    const pub = parseSql("CREATE TABLE public.users (id int PRIMARY KEY);");
+    expect(pub.tables.map((t) => t.name)).toEqual(["users"]);
+  });
+
+  it("preserves rawType alongside canonical type", () => {
+    const ir = parseSql("CREATE TABLE t (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL);");
+    const email = ir.tables[0]?.columns.find((c) => c.name === "email");
+    expect(email?.type).toBe("string");
+    expect(email?.rawType.toLowerCase()).toContain("varchar");
   });
 });

@@ -38,7 +38,7 @@ describe("loadSnapshot", () => {
 
   it("throws the same actionable error for valid JSON that fails schema validation", async () => {
     const root = await project();
-    await writeSnapshot(root, JSON.stringify({ version: 1, tables: [] }));
+    await writeSnapshot(root, JSON.stringify({ version: 2, tables: [] }));
 
     await expect(loadSnapshot(root)).rejects.toThrow(
       `snapshot file exists but is invalid: ${snapshotPath(root)}:`,

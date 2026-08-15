@@ -10,7 +10,7 @@ import type {
   SourceFile,
 } from "ts-morph";
 
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 import type {
   Cardinality,
   Column,
@@ -234,11 +234,13 @@ function extractColumn(
 
   const column: Column = {
     name: dbName,
-    type,
+    type: mapToCanonicalType(type),
+    rawType: type,
     // A primary key is implicitly NOT NULL.
     nullable: !(notNull || isPrimaryKey),
     isPrimaryKey,
     isUnique,
+    isList: false,
     default: defaultVal,
     comment: null,
   };

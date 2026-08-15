@@ -14,7 +14,7 @@ import type {
   SchemaParser,
   Table,
 } from "@schemat/core";
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 
 /* -------------------------------------------------------------------------- */
 /* @dbml/core interop + minimal shapes we consume                             */
@@ -107,12 +107,15 @@ function renderType(field: DbmlField): string {
 
 function toColumn(field: DbmlField, tableCompositePk: Set<string>): Column {
   const isPk = field.pk === true || tableCompositePk.has(field.name);
+  const rawType = renderType(field);
   return {
     name: field.name,
-    type: renderType(field),
+    type: mapToCanonicalType(rawType),
+    rawType,
     nullable: field.not_null !== true && !isPk,
     isPrimaryKey: isPk,
     isUnique: field.unique === true || isPk,
+    isList: false,
     default: renderDefault(field),
     comment: field.note ?? null,
   };
