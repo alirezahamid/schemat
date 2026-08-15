@@ -1,6 +1,6 @@
 {
   "name": "@schemat/parser-drizzle",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Drizzle ORM parser for Schemat (Drizzle schema -> IR, static AST).",
   "license": "MIT",
   "type": "module",

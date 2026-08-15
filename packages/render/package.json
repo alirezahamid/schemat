@@ -1,6 +1,6 @@
 {
   "name": "@schemat/render",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Headless renderers for Schemat: IR -> static SVG and Mermaid ER diagrams.",
   "license": "MIT",
   "type": "module",

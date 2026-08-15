@@ -1,6 +1,6 @@
 {
   "name": "@schemat/web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Interactive schema canvas for Schemat (React Flow).",
   "license": "MIT",
   "type": "module",
