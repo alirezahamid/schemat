@@ -28,6 +28,47 @@ describe("differ", () => {
     expect(diff(base, structuredClone(base))).toEqual([]);
   });
 
+  it("detects added, removed, and changed enums", () => {
+    const before = structuredClone(base);
+    before.enums = [
+      { name: "Status", values: ["DRAFT", "PUBLISHED"] },
+      { name: "Removed", values: ["OLD"] },
+    ];
+    const after = structuredClone(base);
+    after.enums = [
+      { name: "Status", values: ["DRAFT", "ARCHIVED"] },
+      { name: "Added", values: ["NEW"] },
+    ];
+
+    expect(diff(before, after)).toEqual([
+      { kind: "enum.removed", name: "Removed" },
+      {
+        kind: "enum.changed",
+        name: "Status",
+        before: "DRAFT, PUBLISHED",
+        after: "DRAFT, ARCHIVED",
+      },
+      { kind: "enum.added", name: "Added" },
+    ]);
+  });
+
+  it("treats enum value order as significant", () => {
+    const before = structuredClone(base);
+    before.enums = [{ name: "Priority", values: ["LOW", "HIGH"] }];
+    const after = structuredClone(before);
+    after.enums[0]?.values.reverse();
+
+    expect(diff(before, after)).toEqual([
+      { kind: "enum.changed", name: "Priority", before: "LOW, HIGH", after: "HIGH, LOW" },
+    ]);
+  });
+
+  it("does not report unchanged enums", () => {
+    const before = structuredClone(base);
+    before.enums = [{ name: "Status", values: ["DRAFT", "PUBLISHED"] }];
+    expect(diff(before, structuredClone(before))).toEqual([]);
+  });
+
   it("detects an added table", () => {
     const after = structuredClone(base);
     after.tables.push({ name: "Post", comment: null, columns: [col("id")] });

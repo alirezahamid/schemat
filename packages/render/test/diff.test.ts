@@ -15,6 +15,9 @@ const changes: SchemaChange[] = [
     after: "PostStatus",
   },
   { kind: "relation.added", name: "Comment_postId_fkey" },
+  { kind: "enum.added", name: "Role" },
+  { kind: "enum.removed", name: "LegacyStatus" },
+  { kind: "enum.changed", name: "Status", before: "DRAFT, LIVE", after: "DRAFT, ARCHIVED" },
 ];
 
 describe("renderDiffText", () => {
@@ -30,7 +33,10 @@ describe("renderDiffText", () => {
     expect(out).toContain("- column  User.nickname");
     expect(out).toContain("~ column  Post.status  (string → PostStatus)");
     expect(out).toContain("+ relation Comment_postId_fkey");
-    expect(out).toContain("6 change(s): +3 added, -2 removed, ~1 changed");
+    expect(out).toContain("+ enum    Role");
+    expect(out).toContain("- enum    LegacyStatus");
+    expect(out).toContain("~ enum    Status  (DRAFT, LIVE → DRAFT, ARCHIVED)");
+    expect(out).toContain("9 change(s): +4 added, -3 removed, ~2 changed");
   });
 
   it("is deterministic", () => {
