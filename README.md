@@ -13,7 +13,7 @@ Schemat is an open-source, local-first tool for documenting database schemas —
 
 ## Why
 
-- **Git-native.** Your schema source (Prisma, SQL, DBML, Drizzle, TypeORM, MikroORM, and Mongoose today; more later) is the single source of truth. The diagram follows the repo.
+- **Git-native.** Your schema source (Prisma, SQL, DBML, Drizzle, TypeORM, MikroORM, Mongoose, and Sequelize today; community parsers via config) is the single source of truth. The diagram follows the repo.
 - **Local-first.** Runs entirely on your machine. Nothing leaves your laptop.
 - **Live.** `schemat dev` watches your schema files and pushes changes to an interactive canvas over WebSocket — edit, save, see it instantly.
 - **CI-ready.** `schemat check` fails your build when the committed schema docs drift from the live schema. Ships with a GitHub Action.
@@ -131,6 +131,19 @@ It comments the diff on the PR and fails the job when docs are stale. See
 Recommended flow: `schemat init` once locally → commit config + snapshot → run
 `schemat check` (or the Action) in CI.
 
+## Custom parsers
+
+Built-in parsers cover the common ORMs. To load a third-party or local parser without a monorepo PR, add `parsers` to `schemat.config.json`:
+
+```json
+{
+  "parsers": ["./my-parser.js", "@org/schemat-parser-foo"],
+  "source": "my-source"
+}
+```
+
+Each entry is an npm package name or a path relative to the project root implementing the `SchemaParser` contract (`name` + `detect()` + `parse()`, optional `watchTargets()`). See [docs/writing-a-parser.md](./docs/writing-a-parser.md).
+
 ## Architecture
 
 ```
@@ -150,6 +163,7 @@ Monorepo packages (all published under the [`@schemat`](https://www.npmjs.com/or
 | [`@schemat/parser-typeorm`](./packages/parser-typeorm) | TypeORM entities (static TS AST) → IR. |
 | [`@schemat/parser-mikroorm`](./packages/parser-mikroorm) | MikroORM entities (static TS AST) → IR. |
 | [`@schemat/parser-mongoose`](./packages/parser-mongoose) | Mongoose schemas (static TS AST) → IR. |
+| [`@schemat/parser-sequelize`](./packages/parser-sequelize) | Sequelize models (`define` / `Model.init`, static AST) → IR. |
 | [`@schemat/render`](./packages/render) | Headless SVG + Mermaid export and diff rendering. |
 | [`@schemat/web`](./packages/web) | Vite + React + React Flow canvas. |
 | [`@schemat/cli`](./packages/cli) | The `schemat` CLI: init, dev, export, snapshot, check, diff. |
