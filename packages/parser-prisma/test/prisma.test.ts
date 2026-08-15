@@ -48,7 +48,7 @@ describe("prisma parser", () => {
     expect(user?.comment).toBe("An application user.");
 
     const id = user?.columns.find((c) => c.name === "id");
-    expect(id).toMatchObject({ type: "Int", isPrimaryKey: true, nullable: false });
+    expect(id).toMatchObject({ type: "int", rawType: "Int", isPrimaryKey: true, nullable: false });
     expect(id?.default).toBe("autoincrement()");
 
     const name = user?.columns.find((c) => c.name === "name");
@@ -203,5 +203,92 @@ model Gadget {
     // Without comment-stripping this would fail getDMMF with "url is missing".
     const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
     expect(ir.tables.map((t) => t.name)).toEqual(["Gadget"]);
+  });
+});
+
+describe("prisma IR fidelity (composite PK, isList, canonical types)", () => {
+  it("marks all @@id([...]) columns as primary keys", async () => {
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+datasource db {
+  provider = "postgresql"
+}
+generator client {
+  provider = "prisma-client-js"
+}
+model Membership {
+  userId String
+  orgId  String
+  role   String
+  @@id([userId, orgId])
+}
+`,
+    });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
+    const m = ir.tables.find((t) => t.name === "Membership");
+    expect(m).toBeTruthy();
+    const pks = (m?.columns ?? [])
+      .filter((c) => c.isPrimaryKey)
+      .map((c) => c.name)
+      .sort();
+    expect(pks).toEqual(["orgId", "userId"]);
+    expect(m?.columns.every((c) => c.rawType && c.type)).toBe(true);
+  });
+
+  it("preserves isList for scalar arrays (String[])", async () => {
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+datasource db {
+  provider = "postgresql"
+}
+generator client {
+  provider = "prisma-client-js"
+}
+model Post {
+  id    Int      @id @default(autoincrement())
+  tags  String[]
+  flags Boolean[]
+}
+`,
+    });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
+    const post = ir.tables.find((t) => t.name === "Post");
+    const tags = post?.columns.find((c) => c.name === "tags");
+    const flags = post?.columns.find((c) => c.name === "flags");
+    expect(tags).toMatchObject({ type: "string", rawType: "String", isList: true });
+    expect(flags).toMatchObject({ type: "boolean", rawType: "Boolean", isList: true });
+  });
+
+  it("maps Prisma scalars onto the closed CanonicalType vocabulary", async () => {
+    const dir = await makeProject({
+      "prisma/schema.prisma": `
+datasource db {
+  provider = "postgresql"
+}
+generator client {
+  provider = "prisma-client-js"
+}
+model Sample {
+  id        Int      @id
+  email     String
+  active    Boolean
+  score     Float
+  money     Decimal
+  payload   Json
+  blob      Bytes
+  createdAt DateTime
+}
+`,
+    });
+    const ir = normalizeParserOutput(await prismaParser.parse({ projectPath: dir })).schema;
+    const cols = Object.fromEntries((ir.tables[0]?.columns ?? []).map((c) => [c.name, c]));
+    expect(cols.id).toMatchObject({ type: "int", rawType: "Int" });
+    expect(cols.email).toMatchObject({ type: "string", rawType: "String" });
+    expect(cols.active).toMatchObject({ type: "boolean", rawType: "Boolean" });
+    expect(cols.score).toMatchObject({ type: "float", rawType: "Float" });
+    expect(cols.money).toMatchObject({ type: "decimal", rawType: "Decimal" });
+    expect(cols.payload).toMatchObject({ type: "json", rawType: "Json" });
+    expect(cols.blob).toMatchObject({ type: "bytes", rawType: "Bytes" });
+    expect(cols.createdAt).toMatchObject({ type: "datetime", rawType: "DateTime" });
   });
 });

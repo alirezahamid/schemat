@@ -15,7 +15,7 @@ import type {
   SchemaParser,
   Table,
 } from "@schemat/core";
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 
 type GetDMMF = (opts: { datamodel: string }) => Promise<{
   datamodel: { models: unknown[]; enums: unknown[] };
@@ -77,21 +77,30 @@ function renderDefault(field: DmmfField): string | null {
 }
 
 /** Map a scalar/enum field to an IR column. Returns null for relation fields. */
-function toColumn(field: DmmfField): Column | null {
+function toColumn(field: DmmfField, compositePk: Set<string>): Column | null {
   if (field.kind === "object") return null;
+  // Enum columns keep the enum name as rawType; canonical type is "enum".
+  const rawType = field.type;
+  const type = field.kind === "enum" ? ("enum" as const) : mapToCanonicalType(field.type);
+  const isPrimaryKey = field.isId || compositePk.has(field.name);
   return {
     name: field.name,
-    type: field.type,
+    type,
+    rawType,
     nullable: !field.isRequired,
-    isPrimaryKey: field.isId,
-    isUnique: field.isUnique || field.isId,
+    isPrimaryKey,
+    isUnique: field.isUnique || isPrimaryKey,
+    isList: field.isList,
     default: renderDefault(field),
     comment: field.documentation ?? null,
   };
 }
 
 function toTable(model: DmmfModel): Table {
-  const columns = model.fields.map((f) => toColumn(f)).filter((c): c is Column => c !== null);
+  const compositePk = new Set(model.primaryKey?.fields ?? []);
+  const columns = model.fields
+    .map((f) => toColumn(f, compositePk))
+    .filter((c): c is Column => c !== null);
   return { name: model.name, columns, comment: model.documentation ?? null };
 }
 

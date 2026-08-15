@@ -80,7 +80,7 @@ export function renderMermaid(schema: IRSchema): string {
       const attrs: string[] = [];
       if (col.isPrimaryKey) attrs.push("PK");
       if (col.isUnique && !col.isPrimaryKey) attrs.push("UK");
-      const type = col.type.replace(/[^A-Za-z0-9_]/g, "_") || "unknown";
+      const type = (col.rawType ?? col.type).replace(/[^A-Za-z0-9_]/g, "_") || "unknown";
       const name = sanitiseCol(col.name);
       const suffix = attrs.length ? ` ${attrs.join(",")}` : "";
       lines.push(`    ${type} ${name}${suffix}`);

@@ -35,7 +35,7 @@ import type {
   SourceFile,
 } from "ts-morph";
 
-import { IR_VERSION, parseSchema } from "@schemat/core";
+import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 import type {
   Column,
   Enum,
@@ -376,10 +376,12 @@ function buildTable(
   if (!hasExplicitId) {
     columns.push({
       name: "_id",
-      type: "ObjectId",
+      type: mapToCanonicalType("ObjectId"),
+      rawType: "ObjectId",
       nullable: false,
       isPrimaryKey: true,
       isUnique: true,
+      isList: false,
       default: null,
       comment: "Implicit MongoDB primary key",
     });
@@ -411,28 +413,32 @@ function buildTable(
       }
     }
 
-    // Enum on a String field -> named enum + column type = enum name.
-    let colType = f.type;
+    // Enum on a String field -> named enum + column type = enum.
+    let rawType = f.type;
+    let isEnum = false;
     if (f.enumValues?.length && f.type === "String") {
       const enumName = `${tableName}_${f.name}`;
       if (!enums.some((e) => e.name === enumName)) {
         enums.push({ name: enumName, values: f.enumValues });
       }
-      colType = enumName;
+      rawType = enumName;
+      isEnum = true;
     }
 
     // Column type for array-of-ref stays as the ref target's ObjectId? We store
     // the underlying type; the relation captures cardinality. Arrays of refs are
     // represented as an ObjectId column (still nullable) so the column exists.
-    if (f.isArray && f.ref) colType = "ObjectId";
+    if (f.isArray && f.ref) rawType = "ObjectId";
 
     columns.push({
       name: f.name,
-      type: colType,
+      type: isEnum ? ("enum" as const) : mapToCanonicalType(rawType),
+      rawType,
       nullable: !f.required,
       // An explicitly-declared `_id` field is the primary key.
       isPrimaryKey: f.name === "_id",
       isUnique: f.name === "_id" ? true : f.unique,
+      isList: Boolean(f.isArray),
       default: f.default,
       comment: null,
     });

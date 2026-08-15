@@ -71,7 +71,7 @@ function columnRow(col: Column, node: PlacedNode, index: number): string {
       ? `<line x1="${node.x}" y1="${y}" x2="${node.x + node.width}" y2="${y}" stroke="${THEME.divider}" stroke-width="1"/>`
       : "";
 
-  return `${divider}<text x="${nameX}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${THEME.rowText}">${esc(label)}</text><text x="${bx - 8}" y="${cy + 4}" text-anchor="end" font-family="${MONO}" font-size="11" fill="${THEME.typeText}">${esc(col.type)}</text>${badges.join("")}`;
+  return `${divider}<text x="${nameX}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${THEME.rowText}">${esc(label)}</text><text x="${bx - 8}" y="${cy + 4}" text-anchor="end" font-family="${MONO}" font-size="11" fill="${THEME.typeText}">${esc(col.rawType ?? col.type)}${col.isList ? "[]" : ""}</text>${badges.join("")}`;
 }
 
 function tableNode(node: PlacedNode, columns: Column[]): string {

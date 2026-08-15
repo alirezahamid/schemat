@@ -198,7 +198,7 @@ describe("parse", () => {
 
   it("produces a valid IR shape (version 1) validated by parseSchema", () => {
     expect(() => parseSchema(ir)).not.toThrow();
-    expect(ir.version).toBe(1);
+    expect(ir.version).toBe(2);
   });
 
   it("maps @Entity(name) argument to the table name", () => {
@@ -213,7 +213,7 @@ describe("parse", () => {
     const name = users.columns.find((c) => c.name === "name");
 
     expect(id.isPrimaryKey).toBe(true);
-    expect(id.type).toBe("number");
+    expect(id.type).toBe("int");
 
     expect(email.isUnique).toBe(true);
     expect(email.nullable).toBe(false);
@@ -243,7 +243,8 @@ describe("parse", () => {
   it("produces an enum from type:enum + enum identifier", () => {
     const users = ir.tables.find((t) => t.name === "users");
     const status = users.columns.find((c) => c.name === "status");
-    expect(status.type).toBe("UserStatus");
+    expect(status.type).toBe("enum");
+    expect(status.rawType).toBe("UserStatus");
     // identifier-referenced enums have their name captured
     expect(ir.enums.map((e) => e.name)).toContain("UserStatus");
   });
@@ -251,7 +252,8 @@ describe("parse", () => {
   it("produces an enum with inline array values", () => {
     const users = ir.tables.find((t) => t.name === "users");
     const color = users.columns.find((c) => c.name === "color");
-    expect(color.type).toBe("users_color_enum");
+    expect(color.type).toBe("enum");
+    expect(color.rawType).toBe("users_color_enum");
     const en = ir.enums.find((e) => e.name === "users_color_enum");
     expect(en.values).toEqual(["red", "green", "blue"]);
   });
@@ -326,7 +328,7 @@ describe("edge cases", () => {
     writeFileSync(join(d, "index.ts"), "export const x = 1;");
     try {
       const ir = normalizeParserOutput(await typeormParser.parse({ projectPath: d })).schema;
-      expect(ir.version).toBe(1);
+      expect(ir.version).toBe(2);
       expect(ir.tables).toEqual([]);
       expect(ir.relations).toEqual([]);
       expect(ir.enums).toEqual([]);
@@ -388,6 +390,104 @@ class MissingUser {}
       expect("schema" in result ? result.warnings : []).toEqual([
         'TypeORM relation "Post.user" targets unresolved entity "MissingUser"; relation skipped.',
       ]);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fix 10 fidelity: JoinColumn name, TS optionality, type fallback
+// ---------------------------------------------------------------------------
+
+describe("Fix 10 fidelity", () => {
+  it("uses explicit @JoinColumn({ name }) for FK column, not <prop>Id", async () => {
+    const d = mkdtempSync(join(tmpdir(), "typeorm-joincol-"));
+    writeFileSync(
+      join(d, "post.entity.ts"),
+      `import { Entity, ManyToOne, JoinColumn, PrimaryGeneratedColumn, Column } from 'typeorm';
+@Entity()
+class Author {
+  @PrimaryGeneratedColumn() id: number;
+}
+@Entity()
+class Post {
+  @PrimaryGeneratedColumn() id: number;
+  @ManyToOne(() => Author)
+  @JoinColumn({ name: 'author_id' })
+  author: Author;
+  @Column() title: string;
+}
+`,
+    );
+    try {
+      const ir = normalizeParserOutput(await typeormParser.parse({ projectPath: d })).schema;
+      const rel = ir.relations.find((r) => r.fromTable === "Post");
+      expect(rel).toBeTruthy();
+      expect(rel?.fromColumns).toEqual(["author_id"]);
+      expect(rel?.toTable).toBe("Author");
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("treats TS-optional property (email?: string) as nullable when decorator omits nullable", async () => {
+    const d = mkdtempSync(join(tmpdir(), "typeorm-optional-"));
+    writeFileSync(
+      join(d, "user.entity.ts"),
+      `import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+@Entity()
+class User {
+  @PrimaryGeneratedColumn() id: number;
+  @Column() email?: string;
+  @Column({ nullable: false }) required?: string;
+  @Column({ nullable: true }) explicit: string;
+}
+`,
+    );
+    try {
+      const ir = normalizeParserOutput(await typeormParser.parse({ projectPath: d })).schema;
+      const user = ir.tables.find((t) => t.name === "User");
+      expect(user).toBeTruthy();
+      const email = user?.columns.find((c) => c.name === "email");
+      const required = user?.columns.find((c) => c.name === "required");
+      const explicit = user?.columns.find((c) => c.name === "explicit");
+      expect(email?.nullable).toBe(true);
+      expect(required?.nullable).toBe(false);
+      expect(explicit?.nullable).toBe(true);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("does not leak raw TS type text into IR type (unknown falls back to string)", async () => {
+    const d = mkdtempSync(join(tmpdir(), "typeorm-typeleak-"));
+    writeFileSync(
+      join(d, "item.entity.ts"),
+      `import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+type CustomId = string & { __brand: 'CustomId' };
+@Entity()
+class Item {
+  @PrimaryGeneratedColumn() id: number;
+  @Column() customId: CustomId;
+  @Column() weird: MyWeirdType;
+  @Column() plain: string;
+}
+`,
+    );
+    try {
+      const ir = normalizeParserOutput(await typeormParser.parse({ projectPath: d })).schema;
+      const item = ir.tables.find((t) => t.name === "Item");
+      expect(item).toBeTruthy();
+      const customId = item?.columns.find((c) => c.name === "customId");
+      const weird = item?.columns.find((c) => c.name === "weird");
+      const plain = item?.columns.find((c) => c.name === "plain");
+      expect(customId?.type).toBe("string");
+      expect(weird?.type).toBe("string");
+      expect(plain?.type).toBe("string");
+      for (const col of item?.columns ?? []) {
+        expect(col.type).not.toMatch(/CustomId|MyWeirdType|\|/);
+      }
     } finally {
       rmSync(d, { recursive: true, force: true });
     }

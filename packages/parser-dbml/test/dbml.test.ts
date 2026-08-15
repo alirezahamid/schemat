@@ -87,7 +87,8 @@ describe("dbml parser", () => {
     const username = users?.columns.find((c) => c.name === "username");
     // type_name already carries args — no doubling.
     expect(username).toMatchObject({
-      type: "varchar(255)",
+      type: "string",
+      rawType: "varchar(255)",
       isUnique: true,
       nullable: false,
       comment: "login name",

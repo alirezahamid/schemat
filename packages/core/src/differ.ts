@@ -30,8 +30,13 @@ export type SchemaChange =
       after: string;
     };
 
+/**
+ * Structural signature for a column. Uses canonical `type` only — `rawType`
+ * is display-only so Prisma `String` vs SQL `varchar` do not false-positive.
+ */
 function columnSignature(col: Column): string {
-  const parts = [col.type];
+  const parts: string[] = [col.type];
+  if (col.isList) parts.push("list");
   if (col.nullable) parts.push("nullable");
   if (col.isPrimaryKey) parts.push("pk");
   if (col.isUnique) parts.push("unique");

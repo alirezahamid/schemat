@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CANONICAL_TYPES, type CanonicalType } from "./types";
 
 /**
  * Canonical intermediate representation (IR) for a database schema.
@@ -10,20 +11,37 @@ import { z } from "zod";
  * The schemas are defined with zod so we get runtime validation and inferred
  * TypeScript types from one source of truth. Parsers MUST return values that
  * satisfy `IRSchema.parse(...)`.
+ *
+ * ## Version history
+ * - v1: free-form `Column.type` string; no `rawType` / `isList`.
+ * - v2: closed {@link CanonicalType} on `Column.type`, plus `rawType` (source
+ *   display string) and `isList` (array columns). Snapshot files at v1 must be
+ *   regenerated — `parseSchema` rejects the old literal.
  */
 
 /** Relationship cardinality between two tables. */
 export const Cardinality = z.enum(["one-to-one", "one-to-many", "many-to-many"]);
 export type Cardinality = z.infer<typeof Cardinality>;
 
+/** Closed column-type vocabulary (re-exported as a zod enum for IR validation). */
+export const CanonicalTypeSchema = z.enum(CANONICAL_TYPES);
+export type { CanonicalType };
+
 /** A single column on a table. */
 export const Column = z.object({
   name: z.string().min(1),
-  /** Canonical type string, e.g. "string", "int", "datetime", "boolean". */
-  type: z.string().min(1),
+  /**
+   * Closed canonical type (see {@link CanonicalType}). Differ compares this,
+   * not {@link rawType}.
+   */
+  type: CanonicalTypeSchema,
+  /** Original source type string for display (Prisma `String`, SQL `varchar(255)`, …). */
+  rawType: z.string().min(1),
   nullable: z.boolean(),
   isPrimaryKey: z.boolean(),
   isUnique: z.boolean(),
+  /** True for array / list columns (Prisma `String[]`, SQL `int[]`, …). */
+  isList: z.boolean(),
   /** Rendered default expression, or null when there is none. */
   default: z.string().nullable(),
   comment: z.string().nullable(),
@@ -66,7 +84,7 @@ export type Enum = z.infer<typeof Enum>;
  * evolve without silently breaking cached layouts or older parsers.
  */
 export const IRSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   tables: z.array(Table),
   enums: z.array(Enum),
   relations: z.array(Relation),
@@ -74,7 +92,7 @@ export const IRSchema = z.object({
 export type IRSchema = z.infer<typeof IRSchema>;
 
 /** Current IR format version. */
-export const IR_VERSION = 1 as const;
+export const IR_VERSION = 2 as const;
 
 /** Build an empty, valid IR schema. */
 export function emptySchema(): IRSchema {

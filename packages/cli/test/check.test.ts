@@ -2,7 +2,7 @@ import type { IRSchema } from "@schemat/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const schema: IRSchema = {
-  version: 1,
+  version: 2,
   tables: [],
   enums: [{ name: "Status", values: ["DRAFT", "ARCHIVED"] }],
   relations: [],

@@ -103,7 +103,7 @@ describe("drizzleParser", () => {
       await drizzleParser.parse({ projectPath: dir }),
     ).schema;
 
-    expect(ir.version).toBe(1);
+    expect(ir.version).toBe(2);
 
     // --- tables ---
     const tableNames = ir.tables.map((t) => t.name).sort();
@@ -113,12 +113,14 @@ describe("drizzleParser", () => {
     expect(users.comment).toBeNull();
 
     const id = users.columns.find((c) => c.name === "id");
-    expect(id.type).toBe("serial");
+    expect(id.type).toBe("int");
+    expect(id.rawType).toBe("serial");
     expect(id.isPrimaryKey).toBe(true);
     expect(id.nullable).toBe(false); // pk is implicitly not-null
 
     const email = users.columns.find((c) => c.name === "email");
-    expect(email.type).toBe("varchar");
+    expect(email.type).toBe("string");
+    expect(email.rawType).toBe("varchar");
     expect(email.isUnique).toBe(true);
     expect(email.nullable).toBe(false); // .notNull()
 
@@ -138,7 +140,8 @@ describe("drizzleParser", () => {
     const authorId = ir.tables
       .find((t) => t.name === "posts")
       .columns.find((c) => c.name === "author_id");
-    expect(authorId.type).toBe("integer");
+    expect(authorId.type).toBe("int");
+    expect(authorId.rawType).toBe("integer");
 
     // --- enums ---
     expect(ir.enums).toHaveLength(1);
@@ -208,7 +211,7 @@ describe("drizzleParser", () => {
   it("returns an empty-but-valid IR for an empty schema file", async () => {
     const dir = await makeProject({ "src/schema.ts": "" });
     const ir = normalizeParserOutput(await drizzleParser.parse({ projectPath: dir })).schema;
-    expect(ir).toEqual({ version: 1, tables: [], enums: [], relations: [] });
+    expect(ir).toEqual({ version: 2, tables: [], enums: [], relations: [] });
   });
 
   it("does not throw on a malformed schema file and salvages valid tables", async () => {
@@ -222,6 +225,6 @@ describe("drizzleParser", () => {
     const ir = normalizeParserOutput(await drizzleParser.parse({ projectPath: dir })).schema;
     // Must not throw; the valid table is recovered.
     expect(ir.tables.some((t) => t.name === "ok")).toBe(true);
-    expect(ir.version).toBe(1);
+    expect(ir.version).toBe(2);
   });
 });

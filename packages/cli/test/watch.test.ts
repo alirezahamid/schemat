@@ -5,7 +5,7 @@ import { resolveWatchTargets } from "../src/watch";
 const parser = (watchTargets?: SchemaParser["watchTargets"]): SchemaParser => ({
   name: "test",
   detect: async () => true,
-  parse: async () => ({ version: 1, tables: [], enums: [], relations: [] }),
+  parse: async () => ({ version: 2, tables: [], enums: [], relations: [] }),
   watchTargets,
 });
 
