@@ -61,7 +61,7 @@ Common flags (see `schemat <command> --help`):
 
 - `-r, --root <dir>` — project root (default `.`)
 - `-s, --source <parser>` — force a parser, bypassing auto-detect
-  (`prisma | drizzle | typeorm | mikroorm | mongoose | dbml | sql`)
+  (`prisma | drizzle | typeorm | mikroorm | mongoose | sequelize | dbml | sql`)
 
 ### Source detection and overrides
 
@@ -72,8 +72,9 @@ Auto-detect walks parsers **first-match-wins** in this order (specific → weak)
 3. **typeorm** — `typeorm` dep, or `@Entity` + `from 'typeorm'`
 4. **mikroorm** — `@mikro-orm/*` dep, or `@Entity` + `@mikro-orm/core` import
 5. **mongoose** — mongoose models with `new Schema({...})`
-6. **dbml** — `schema.dbml` (and other conventional DBML paths)
-7. **sql** — `schema.sql` / `db/schema.sql` / `sql/schema.sql`, or a root `*.sql` that actually contains `CREATE TABLE` (a bare `seed.sql` of INSERTs does **not** claim the project)
+6. **sequelize** — `sequelize` dep, or `sequelize.define` / `Model.init` model files
+7. **dbml** — `schema.dbml` (and other conventional DBML paths)
+8. **sql** — `schema.sql` / `db/schema.sql` / `sql/schema.sql`, or a root `*.sql` that actually contains `CREATE TABLE` (a bare `seed.sql` of INSERTs does **not** claim the project)
 
 When several signals coexist (e.g. a Drizzle app with a root `seed.sql`), the more specific parser wins. Override when you need to:
 
