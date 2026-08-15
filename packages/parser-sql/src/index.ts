@@ -98,8 +98,9 @@ function findDollarEnd(sql: string, from: number, tag: string): number | null {
 }
 
 /** Copy a single- or double-quoted span (handles doubled-quote escapes). */
-function copyQuoted(sql: string, i: number, quote: "'" | '"'): [string, number] {
+function copyQuoted(sql: string, start: number, quote: "'" | '"'): [string, number] {
   const n = sql.length;
+  let i = start;
   let out = sql[i] ?? "";
   i++;
   while (i < n) {
