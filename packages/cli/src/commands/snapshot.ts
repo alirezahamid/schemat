@@ -4,6 +4,7 @@ import { saveSnapshot, snapshotPath } from "../snapshot";
 
 export interface SnapshotOptions {
   root: string;
+  source?: string;
 }
 
 /**
@@ -14,7 +15,7 @@ export interface SnapshotOptions {
 export async function runSnapshot(options: SnapshotOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const result = await resolveSchemaResult(projectPath);
+  const result = await resolveSchemaResult(projectPath, options.source);
   const schema = result?.schema ?? null;
   for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!schema) {

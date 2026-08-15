@@ -872,16 +872,31 @@ async function parse(input: ParserInput): Promise<ParserResult> {
 }
 
 async function detect(projectPath: string): Promise<boolean> {
+  // Named schema paths are a strong signal.
   for (const rel of CANDIDATE_PATHS) {
     if (await fileExists(path.join(projectPath, rel))) return true;
   }
+  // Loose root *.sql only when the file actually looks like DDL. A stray
+  // seed.sql of INSERTs must not claim the project as SQL (and, with SQL last
+  // in CLI detection order, never shadow Drizzle/TypeORM/etc.).
   try {
     const { readdir } = await import("node:fs/promises");
     const entries = await readdir(projectPath);
-    return entries.some((e) => e.toLowerCase().endsWith(".sql"));
+    for (const e of entries.sort()) {
+      if (!e.toLowerCase().endsWith(".sql")) continue;
+      try {
+        const sql = await readFile(path.join(projectPath, e), "utf8");
+        if (/\bCREATE\s+(?:GLOBAL\s+|LOCAL\s+|TEMP(?:ORARY)?\s+|UNLOGGED\s+)*TABLE\b/i.test(sql)) {
+          return true;
+        }
+      } catch {
+        /* unreadable file — skip */
+      }
+    }
   } catch {
     return false;
   }
+  return false;
 }
 
 export const sqlParser: SchemaParser = {

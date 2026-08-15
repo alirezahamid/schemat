@@ -11,6 +11,7 @@ export interface ExportOptions {
   format: ExportFormat;
   /** Output file path, or a directory (a `schema.<ext>` file is written inside). */
   out?: string;
+  source?: string;
 }
 
 const EXT: Record<ExportFormat, string> = { svg: "svg", mermaid: "mmd" };
@@ -59,7 +60,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   const projectPath = path.resolve(process.cwd(), options.root);
 
-  const result = await resolveSchemaResult(projectPath);
+  const result = await resolveSchemaResult(projectPath, options.source);
   const schema = result?.schema ?? null;
   for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!schema) {
