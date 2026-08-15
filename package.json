@@ -19,7 +19,7 @@
     "perf:large-schema:generate": "node scripts/generate-large-schema-fixture.mjs",
     "perf:large-schema": "node packages/cli/scripts/large-schema-smoke.mjs",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && pnpm format",
     "release": "changeset publish"
   },
   "devDependencies": {
