@@ -1,6 +1,7 @@
 import { access, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { configWritePath } from "../config";
+import { ensureProjectDir } from "../project-path";
 import {
   PARSER_NAMES,
   detectParser,
@@ -9,6 +10,7 @@ import {
   resolveSchemaResult,
 } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
+import { suggestCommand } from "../suggest";
 
 export interface InitOptions {
   root: string;
@@ -33,6 +35,7 @@ async function fileExists(p: string): Promise<boolean> {
  */
 export async function runInit(options: InitOptions): Promise<void> {
   const projectPath = path.resolve(process.cwd(), options.root);
+  if (!(await ensureProjectDir(projectPath, { command: "init", root: options.root }))) return;
 
   let parserName: string;
   if (options.source) {
@@ -46,7 +49,7 @@ export async function runInit(options: InitOptions): Promise<void> {
   } else {
     const detected = await detectParser(projectPath);
     if (!detected) {
-      console.error(await noSchemaMessage(projectPath));
+      console.error(await noSchemaMessage(projectPath, { command: "init", root: options.root }));
       console.error(`\nPass --source <${PARSER_NAMES.join("|")}> to force a parser.`);
       process.exitCode = 1;
       return;
@@ -63,19 +66,22 @@ export async function runInit(options: InitOptions): Promise<void> {
     return;
   }
 
-  const configDoc = `${JSON.stringify({ source: parserName }, null, 2)}\n`;
-  await writeFile(configPath, configDoc, "utf8");
-  const configRel = path.relative(process.cwd(), configPath) || configPath;
-  console.log(`  ✓ Wrote ${configRel} (source: ${parserName})`);
-
+  // Parse BEFORE writing the config: a config pointing at a source that can't
+  // parse poisons every later command in this directory (including the
+  // monorepo hint), so it must never be left behind by a failed init.
   const result = await resolveSchemaResult(projectPath, parserName);
   for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
   const schema = result?.schema ?? null;
   if (!schema) {
-    console.error(await noSchemaMessage(projectPath));
+    console.error(await noSchemaMessage(projectPath, { command: "init", root: options.root }));
     process.exitCode = 1;
     return;
   }
+
+  const configDoc = `${JSON.stringify({ source: parserName }, null, 2)}\n`;
+  await writeFile(configPath, configDoc, "utf8");
+  const configRel = path.relative(process.cwd(), configPath) || configPath;
+  console.log(`  ✓ Wrote ${configRel} (source: ${parserName})`);
 
   await saveSnapshot(projectPath, schema);
   const snapRel =
@@ -88,7 +94,7 @@ export async function runInit(options: InitOptions): Promise<void> {
   console.log(`
 Next steps:
   1. Commit ${configRel} and ${snapRel}
-  2. Add \`schemat check\` to CI (see the GitHub Action in the README)
-  3. Run \`schemat dev\` for a live ER diagram
+  2. Add \`${suggestCommand("check", { root: options.root })}\` to CI (see the GitHub Action in the README)
+  3. Run \`${suggestCommand("dev", { root: options.root })}\` for a live ER diagram
 `);
 }

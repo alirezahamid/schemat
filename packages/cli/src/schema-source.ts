@@ -11,6 +11,7 @@ import { sequelizeParser } from "@schemat/parser-sequelize";
 import { sqlParser } from "@schemat/parser-sql";
 import { typeormParser } from "@schemat/parser-typeorm";
 import { loadConfiguredParsers } from "./config";
+import { type Invocation, suggestCommand } from "./suggest";
 
 /**
  * Built-in parsers in auto-detection priority order (specific → weak).
@@ -202,15 +203,25 @@ export async function findSchemasInSubdirs(root: string): Promise<string[]> {
       }
     }
   }
-  return found.sort();
+  // Natural sort so svc2 comes before svc10 (lexical sort reads as broken).
+  return found.sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
 }
+
+/** Max suggestion lines printed for a monorepo before we truncate. */
+const MAX_SUGGESTED_ROOTS = 10;
 
 /**
  * Build the "no schema found" error message. When the given root looks like a
  * monorepo (schemas live under apps/*, packages/*, …), list the discovered
  * service paths so the user knows exactly what to pass to `--root`.
+ *
+ * `invocation` carries the subcommand the user ran, so every printed command is
+ * copy-pasteable (`schemat dev --root apps/api`, never a bare `schemat --root`).
  */
-export async function noSchemaMessage(projectPath: string): Promise<string> {
+export async function noSchemaMessage(
+  projectPath: string,
+  invocation: Invocation,
+): Promise<string> {
   const base =
     `No schema found under ${projectPath}.\n` +
     `Expected ${SUPPORTED_SOURCES}, or pass --root <dir> / --source <parser>.`;
@@ -219,16 +230,21 @@ export async function noSchemaMessage(projectPath: string): Promise<string> {
 
   // Suggest paths relative to the user's cwd, not the resolved projectPath, so
   // the printed `--root` works verbatim even when they ran `schemat --root repo`.
-  const list = subdirs
+  const shown = subdirs.slice(0, MAX_SUGGESTED_ROOTS);
+  const list = shown
     .map((d) => {
       const rel = path.relative(process.cwd(), path.join(projectPath, d)) || d;
-      return `  schemat --root ${rel}`;
+      return `  ${suggestCommand(invocation.command, { root: rel })}`;
     })
     .join("\n");
+  const more =
+    subdirs.length > shown.length
+      ? `\n  … and ${subdirs.length - shown.length} more sub-project(s)`
+      : "";
   return (
     `${base}\n\n` +
     `This looks like a monorepo. Found schemas in ${subdirs.length} sub-project(s) — ` +
-    `point --root at one:\n${list}`
+    `point --root at one:\n${list}${more}`
   );
 }
 

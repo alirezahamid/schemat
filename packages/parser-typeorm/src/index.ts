@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { IR_VERSION, mapToCanonicalType, parseSchema } from "@schemat/core";
 import type {
   Cardinality,
@@ -85,46 +85,98 @@ function fileHasEntityDecorator(path: string): boolean {
   }
 }
 
+/**
+ * Decorators that only TypeORM defines. Used as a fallback signal when a
+ * NestJS-style project re-exports TypeORM's decorators through a shared barrel
+ * (`import { Entity, Column } from "@app/common/database"`), so the entity file
+ * never mentions `typeorm` by name.
+ */
+const TYPEORM_ONLY_DECORATORS =
+  /@(PrimaryGeneratedColumn|CreateDateColumn|UpdateDateColumn|DeleteDateColumn|VersionColumn|JoinColumn|JoinTable|ObjectIdColumn)\s*\(/;
+
+/** Walk up from `dir` looking for a package.json that declares `typeorm`. */
+function ancestorDeclaresTypeorm(dir: string, maxLevels = 5): boolean {
+  let current = dir;
+  for (let i = 0; i < maxLevels; i++) {
+    const parent = dirname(current);
+    if (parent === current) return false;
+    current = parent;
+    if (packageDeclaresTypeorm(join(current, "package.json"))) return true;
+  }
+  return false;
+}
+
+/** True when the package.json at `pkgPath` lists `typeorm` in any deps field. */
+function packageDeclaresTypeorm(pkgPath: string): boolean {
+  if (!existsSync(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as Record<
+      string,
+      Record<string, string> | undefined
+    >;
+    for (const field of [
+      "dependencies",
+      "devDependencies",
+      "peerDependencies",
+      "optionalDependencies",
+    ]) {
+      const deps = pkg[field];
+      if (deps && Object.prototype.hasOwnProperty.call(deps, "typeorm")) return true;
+    }
+  } catch {
+    // ignore malformed package.json
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // detect()
 // ---------------------------------------------------------------------------
 
 async function detect(projectPath: string): Promise<boolean> {
   // 1. typeorm dependency in package.json
-  const pkgPath = join(projectPath, "package.json");
-  if (existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as Record<
-        string,
-        Record<string, string> | undefined
-      >;
-      for (const field of [
-        "dependencies",
-        "devDependencies",
-        "peerDependencies",
-        "optionalDependencies",
-      ]) {
-        const deps = pkg[field];
-        if (deps && Object.prototype.hasOwnProperty.call(deps, "typeorm")) {
-          return true;
-        }
-      }
-    } catch {
-      // ignore malformed package.json
-    }
-  }
+  if (packageDeclaresTypeorm(join(projectPath, "package.json"))) return true;
 
-  // 2. Decorator-based detection. Require a `typeorm` import signal in the same
-  //    file as an @Entity( decorator, so we don't false-positive MikroORM (which
-  //    also uses @Entity but imports from @mikro-orm/core).
+  // 2. Decorator-based detection. Require a TypeORM signal in the same file as
+  //    an @Entity( decorator, so we don't false-positive MikroORM (which also
+  //    uses @Entity but imports from @mikro-orm/core).
   const tsFiles = walkTsFiles(projectPath);
   for (const f of tsFiles) {
     if (fileIsTypeormEntity(f)) return true;
   }
+
+  // 3. Workspace fallback: in a monorepo `typeorm` is often hoisted to the root
+  //    package.json, so a service's own package.json never mentions it. Accept
+  //    that only alongside a real entity file here, so schema-less packages in
+  //    the same workspace don't all claim to be TypeORM projects.
+  //    The same @mikro-orm/ exclusion as rung 2 applies: MikroORM also uses
+  //    @Entity, and this parser precedes the MikroORM one, so without the guard
+  //    a MikroORM service in a typeorm-declaring workspace gets claimed here and
+  //    emits class-name tables with zero columns.
+  if (tsFiles.some(fileHasNonMikroEntityDecorator) && ancestorDeclaresTypeorm(projectPath)) {
+    return true;
+  }
+
   return false;
 }
 
-/** True when a file has an @Entity decorator AND imports from `typeorm`. */
+/** @Entity decorator in a file that is not a MikroORM entity. */
+function fileHasNonMikroEntityDecorator(path: string): boolean {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return false;
+  }
+  if (!/@Entity\s*\(/.test(text)) return false;
+  return !/from\s+['"]@mikro-orm\//.test(text);
+}
+
+/**
+ * True when a file has an @Entity decorator and a TypeORM signal: either a
+ * direct `typeorm` import, or a TypeORM-only decorator (covers barrel
+ * re-exports) while not importing @mikro-orm/core.
+ */
 function fileIsTypeormEntity(path: string): boolean {
   let text: string;
   try {
@@ -133,8 +185,10 @@ function fileIsTypeormEntity(path: string): boolean {
     return false;
   }
   if (!/@Entity\s*\(/.test(text)) return false;
-  // Must import from typeorm (not @mikro-orm/core) to be a TypeORM entity.
-  return /from\s+['"]typeorm['"]/.test(text);
+  if (/from\s+['"]typeorm['"]/.test(text)) return true;
+  // MikroORM also uses @Entity — never claim its files.
+  if (/from\s+['"]@mikro-orm\//.test(text)) return false;
+  return TYPEORM_ONLY_DECORATORS.test(text);
 }
 
 // ---------------------------------------------------------------------------

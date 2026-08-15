@@ -25,12 +25,6 @@ Early. v1 is **read-only**: the repo is the source of truth and the browser rend
 
 ## Install
 
-> **Note:** the published `@schemat/cli` on npm is `0.1.0` and predates the
-> parsers and commands documented below (`init`, `--source`, and the DBML,
-> Drizzle, TypeORM, MikroORM, Mongoose and Sequelize parsers). Until the next
-> release lands, run from a clone of `main` for those. Everything else here
-> matches the published build.
-
 ```bash
 # one-off
 npx @schemat/cli dev
