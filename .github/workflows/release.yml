@@ -6,6 +6,10 @@ on:
 
 concurrency: release-${{ github.ref }}
 
+# These permissions are necessary but NOT sufficient: opening the version PR
+# also requires Settings → Actions → General → "Allow GitHub Actions to create
+# and approve pull requests" to be enabled for the repo/org. Without it the run
+# fails with "GitHub Actions is not permitted to create or approve pull requests".
 permissions:
   contents: write # push the version PR branch + git tags
   pull-requests: write # open/update the "version packages" PR

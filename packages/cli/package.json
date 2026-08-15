@@ -4,6 +4,9 @@
   "description": "Git-native database schema documentation \u2014 live interactive ER diagrams from your repo.",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "schemat": "./dist/index.js"
   },

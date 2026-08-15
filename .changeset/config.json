@@ -6,8 +6,14 @@
     [
       "@schemat/cli",
       "@schemat/core",
+      "@schemat/parser-dbml",
+      "@schemat/parser-drizzle",
+      "@schemat/parser-mikroorm",
+      "@schemat/parser-mongoose",
       "@schemat/parser-prisma",
+      "@schemat/parser-sequelize",
       "@schemat/parser-sql",
+      "@schemat/parser-typeorm",
       "@schemat/render",
       "@schemat/web"
     ]

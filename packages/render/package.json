@@ -4,6 +4,9 @@
   "description": "Headless renderers for Schemat: IR -> static SVG and Mermaid ER diagrams.",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
