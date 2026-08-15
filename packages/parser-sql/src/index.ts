@@ -91,45 +91,69 @@ function matchDollarTag(sql: string, i: number): string | null {
   return m ? m[0] : null;
 }
 
-/** Index just past the matching dollar-quote closer, or end of input. */
-function findDollarEnd(sql: string, from: number, tag: string): number {
+/** Index just past the matching dollar-quote closer, or null when missing. */
+function findDollarEnd(sql: string, from: number, tag: string): number | null {
   const close = sql.indexOf(tag, from);
-  return close === -1 ? sql.length : close + tag.length;
+  return close === -1 ? null : close + tag.length;
+}
+
+/** Copy a single- or double-quoted span (handles doubled-quote escapes). */
+function copyQuoted(sql: string, start: number, quote: "'" | '"'): [string, number] {
+  const n = sql.length;
+  let i = start;
+  let out = sql[i] ?? "";
+  i++;
+  while (i < n) {
+    const ch = sql[i] ?? "";
+    out += ch;
+    if (ch === quote) {
+      if (sql[i + 1] === quote) {
+        out += sql[i + 1] ?? "";
+        i += 2;
+        continue;
+      }
+      i++;
+      break;
+    }
+    i++;
+  }
+  return [out, i];
 }
 
 /** Strip `--` line comments and `/* *\/` block comments, preserving strings. */
-function stripComments(sql: string): string {
+function stripComments(sql: string, warnings: string[]): string {
   let out = "";
   let i = 0;
   const n = sql.length;
   while (i < n) {
     const ch = sql[i];
     const next = sql[i + 1];
+    // double-quoted identifier: opaque before dollar-tag scan (Postgres `"$func$"`)
+    if (ch === '"') {
+      const [chunk, nextI] = copyQuoted(sql, i, '"');
+      out += chunk;
+      i = nextI;
+      continue;
+    }
     // dollar-quoted body ($$ ... $$ / $tag$ ... $tag$): opaque, copied verbatim
     const dollarTag = matchDollarTag(sql, i);
     if (dollarTag) {
       const end = findDollarEnd(sql, i + dollarTag.length, dollarTag);
-      out += sql.slice(i, end);
-      i = end;
+      if (end === null) {
+        const line = sql.slice(0, i).split("\n").length;
+        warnings.push(
+          `Unterminated SQL dollar quote "${dollarTag}" opened at line ${line}; input from that point on could not be parsed.`,
+        );
+      }
+      out += sql.slice(i, end ?? sql.length);
+      i = end ?? sql.length;
       continue;
     }
     // single-quoted string literal
     if (ch === "'") {
-      out += ch;
-      i++;
-      while (i < n) {
-        out += sql[i];
-        if (sql[i] === "'") {
-          if (sql[i + 1] === "'") {
-            out += sql[i + 1];
-            i += 2;
-            continue;
-          }
-          i++;
-          break;
-        }
-        i++;
-      }
+      const [chunk, nextI] = copyQuoted(sql, i, "'");
+      out += chunk;
+      i = nextI;
       continue;
     }
     // line comment
@@ -159,31 +183,26 @@ function splitStatements(sql: string): string[] {
   const n = sql.length;
   while (i < n) {
     const ch = sql[i];
+    // double-quoted identifier first so `"$func$"` is not a dollar tag
+    if (ch === '"') {
+      const [chunk, nextI] = copyQuoted(sql, i, '"');
+      cur += chunk;
+      i = nextI;
+      continue;
+    }
     // A dollar-quoted body is one opaque unit — semicolons inside it must not
     // split the enclosing CREATE FUNCTION into fragments.
     const dollarTag = matchDollarTag(sql, i);
     if (dollarTag) {
       const end = findDollarEnd(sql, i + dollarTag.length, dollarTag);
-      cur += sql.slice(i, end);
-      i = end;
+      cur += sql.slice(i, end ?? sql.length);
+      i = end ?? sql.length;
       continue;
     }
     if (ch === "'") {
-      cur += ch;
-      i++;
-      while (i < n) {
-        cur += sql[i];
-        if (sql[i] === "'") {
-          if (sql[i + 1] === "'") {
-            cur += sql[i + 1];
-            i += 2;
-            continue;
-          }
-          i++;
-          break;
-        }
-        i++;
-      }
+      const [chunk, nextI] = copyQuoted(sql, i, "'");
+      cur += chunk;
+      i = nextI;
       continue;
     }
     if (ch === "(") depth++;
@@ -764,7 +783,7 @@ function summarizeUnsupported(statements: string[]): string[] {
 
 /** Parse a raw SQL DDL string into the canonical IR (unvalidated shape). */
 export function parseSql(sql: string, warnings: string[] = []): IRSchema {
-  const clean = stripComments(sql);
+  const clean = stripComments(sql, warnings);
   const statements = splitStatements(clean);
 
   const tables: Table[] = [];
