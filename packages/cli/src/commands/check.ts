@@ -45,12 +45,6 @@ export async function runCheck(options: CheckOptions): Promise<void> {
     options.format === "markdown" ? renderDiffMarkdown(changes) : renderDiffText(changes);
   process.stdout.write(output);
 
-  // Surface parser warnings in the PR-comment payload too, not just on stderr.
-  if (warnings.length > 0 && options.format === "markdown") {
-    const list = warnings.map((w) => `- ${w}`).join("\n");
-    process.stdout.write(`\n### Parser warnings\n\n${list}\n`);
-  }
-
   if (changes.length > 0) {
     // Non-zero exit fails the CI job.
     process.exitCode = 1;

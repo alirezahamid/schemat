@@ -488,7 +488,6 @@ async function detect(projectPath: string): Promise<boolean> {
   // 2) Any source file containing `new mongoose.Schema(` or `new Schema(`.
   //    3) Common model files.
   const project = makeProject();
-  const warnings: string[] = [];
   try {
     project.addSourceFilesAtPaths([
       ...SOURCE_GLOBS.map((g) => join(projectPath, g)),
