@@ -3,6 +3,7 @@ import { diff } from "@schemat/core";
 import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
 import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 import { loadSnapshot, snapshotPath } from "../snapshot";
+import { suggestCommand } from "../suggest";
 
 export interface CheckOptions {
   root: string;
@@ -24,7 +25,7 @@ export async function runCheck(options: CheckOptions): Promise<void> {
   const warnings = result?.warnings ?? [];
   for (const warning of warnings) console.error(`Warning: ${warning}`);
   if (!current) {
-    console.error(await noSchemaMessage(projectPath));
+    console.error(await noSchemaMessage(projectPath, { command: "check", root: options.root }));
     process.exitCode = 1;
     return;
   }
@@ -34,7 +35,8 @@ export async function runCheck(options: CheckOptions): Promise<void> {
     const rel =
       path.relative(process.cwd(), snapshotPath(projectPath)) || snapshotPath(projectPath);
     console.error(
-      `No committed snapshot at ${rel}.\nRun \`schemat snapshot\` and commit the result first.`,
+      `No committed snapshot at ${rel}.\n` +
+        `Run \`${suggestCommand("snapshot", { root: options.root })}\` and commit the result first.`,
     );
     process.exitCode = 1;
     return;

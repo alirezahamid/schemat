@@ -64,7 +64,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
   const schema = result?.schema ?? null;
   for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!schema) {
-    console.error(await noSchemaMessage(projectPath));
+    console.error(await noSchemaMessage(projectPath, { command: "export", root: options.root }));
     process.exitCode = 1;
     return;
   }

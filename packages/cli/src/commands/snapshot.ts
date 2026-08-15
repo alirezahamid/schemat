@@ -1,6 +1,7 @@
 import path from "node:path";
 import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
+import { suggestCommand } from "../suggest";
 
 export interface SnapshotOptions {
   root: string;
@@ -19,7 +20,7 @@ export async function runSnapshot(options: SnapshotOptions): Promise<void> {
   const schema = result?.schema ?? null;
   for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
   if (!schema) {
-    console.error(await noSchemaMessage(projectPath));
+    console.error(await noSchemaMessage(projectPath, { command: "snapshot", root: options.root }));
     process.exitCode = 1;
     return;
   }
@@ -30,5 +31,7 @@ export async function runSnapshot(options: SnapshotOptions): Promise<void> {
     `  ✓ Snapshot written: ${schema.tables.length} tables, ${schema.relations.length} relations, ` +
       `${schema.enums.length} enums → ${rel}`,
   );
-  console.log("    Commit this file so `schemat check` can detect drift in CI.");
+  console.log(
+    `    Commit this file so \`${suggestCommand("check", { root: options.root })}\` can detect drift in CI.`,
+  );
 }

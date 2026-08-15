@@ -82,13 +82,21 @@ function safeFence(body: string): string {
  * comment posted by the drift-check Action. Uses a fenced diff block (with a
  * fence long enough to survive backticks in schema names) so + / - lines get
  * red/green highlighting on GitHub.
+ *
+ * `options.snapshotCommand` is the exact command the reader should run to fix
+ * the drift — the caller passes the invocation that matches their `--root`, so
+ * the printed command is copy-pasteable rather than a generic `schemat snapshot`.
  */
-export function renderDiffMarkdown(changes: SchemaChange[]): string {
+export function renderDiffMarkdown(
+  changes: SchemaChange[],
+  options: { snapshotCommand?: string } = {},
+): string {
   if (changes.length === 0) {
     return "### 🟢 Schemat: schema docs are up to date\n\nNo drift between the committed snapshot and the current schema.\n";
   }
 
+  const snapshotCommand = options.snapshotCommand ?? "schemat snapshot";
   const body = renderDiffText(changes).trimEnd();
   const fence = safeFence(body);
-  return `### 🔴 Schemat: schema docs are out of date\n\nThe committed schema snapshot no longer matches the current schema. Regenerate it with \`schemat snapshot\` and commit the result.\n\n${fence}diff\n${body}\n${fence}\n`;
+  return `### 🔴 Schemat: schema docs are out of date\n\nThe committed schema snapshot no longer matches the current schema. Regenerate it with \`${snapshotCommand}\` and commit the result.\n\n${fence}diff\n${body}\n${fence}\n`;
 }

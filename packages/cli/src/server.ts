@@ -64,14 +64,25 @@ export async function startServer(
   await new Promise<void>((resolve, reject) => {
     const onError = (err: Error) => reject(err);
     httpServer.once("error", onError);
+    // `ws` re-emits the http server's errors on the WebSocketServer. An
+    // unhandled 'error' on an EventEmitter throws, which is what turned a port
+    // conflict into a raw 22-line stack trace: it killed the process before the
+    // listen promise could reject. Route it into the same rejection path.
+    wss.once("error", onError);
     httpServer.listen(port, () => {
       httpServer.removeListener("error", onError);
+      wss.removeListener("error", onError);
       resolve();
     });
   });
 
+  const address = httpServer.address();
+  // Report the port actually bound, not the requested one — `--port 0` asks the
+  // OS to pick, and printing "localhost:0" is a dead link.
+  const boundPort = typeof address === "object" && address !== null ? address.port : port;
+
   return {
-    port,
+    port: boundPort,
     broadcast(schema: IRSchema) {
       currentSchema = schema;
       const frame = JSON.stringify({ type: "schema", schema });
