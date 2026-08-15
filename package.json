@@ -16,6 +16,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "dev": "pnpm --filter @schemat/cli dev",
+    "perf:large-schema:generate": "node scripts/generate-large-schema-fixture.mjs",
+    "perf:large-schema": "node packages/cli/scripts/large-schema-smoke.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish"

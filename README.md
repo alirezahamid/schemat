@@ -168,6 +168,21 @@ Monorepo packages (all published under the [`@schemat`](https://www.npmjs.com/or
 | [`@schemat/web`](./packages/web) | Vite + React + React Flow canvas. |
 | [`@schemat/cli`](./packages/cli) | The `schemat` CLI: init, dev, export, snapshot, check, diff. |
 
+## Large-schema canvas fixture
+
+Stress fixture for canvas layout (≥100 tables + FKs):
+
+- `examples/large-schema/` — committed SQL + [README](./examples/large-schema/README.md)
+- Writeup: [docs/perf-canvas.md](./docs/perf-canvas.md)
+
+```bash
+pnpm install && pnpm build
+pnpm perf:large-schema:generate   # optional regenerate
+pnpm perf:large-schema            # parse + headless ELK timings (JSON)
+# interactive canvas:
+pnpm --filter @schemat/cli exec tsx src/index.ts dev --root examples/large-schema --source sql
+```
+
 ## Contributing
 
 Contributions welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md). Quick start:
