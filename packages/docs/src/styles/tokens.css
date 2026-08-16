@@ -18,6 +18,7 @@
   --s-text-strong: #fafafa; /* 15.79:1 */
   --s-text-dim: #8a8a8a; /* 4.77:1 */
   --s-accent: #38bdf8; /* 7.69:1 */
+  --s-on-accent: #0a0a0a; /* 9.24:1 ON --s-accent, not on a surface */
   --s-link: #7dd3fc; /* 9.89:1 */
   --s-pk: #fbbf24; /* 9.87:1 */
   --s-fk: #a78bfa; /* 6.06:1 */
@@ -35,6 +36,7 @@
   --s-text-strong: #0a0a0a; /* 17.37:1 */
   --s-text-dim: #666666; /* 5.04:1 */
   --s-accent: #075985; /* 6.64:1 */
+  --s-on-accent: #fafafa; /* 7.25:1 ON --s-accent, not on a surface */
   --s-link: #0369a1; /* 5.21:1 */
   --s-pk: #92400e; /* 6.22:1 */
   --s-fk: #6d28d9; /* 6.23:1 */
@@ -79,6 +81,12 @@
   --sl-color-text-accent: var(--s-accent);
   --sl-color-accent: var(--s-accent);
   --sl-color-accent-high: var(--s-link);
+  /* Starlight fills backgrounds with these two (current sidebar entry, hero
+     CTA, skip link, banner) and writes --sl-color-text-invert on top. Left at
+     Starlight's defaults they are an off-palette blue the contrast gate never
+     sees. Both sides of the pair are ours now. */
+  --sl-color-bg-accent: var(--s-accent);
+  --sl-color-text-invert: var(--s-on-accent);
   --sl-color-hairline: var(--s-border);
   --sl-color-hairline-light: var(--s-border);
   --sl-color-hairline-shade: var(--s-border);
