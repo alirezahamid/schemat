@@ -4,6 +4,7 @@ import { renderMermaid, renderSvg } from "@schemat/render/node";
 import { loadLayout } from "../layout";
 import { displayPath, ensureProjectDir } from "../project-path";
 import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
+import { arrow, counts, detail, errorBlock, success, warning } from "../ui";
 
 export type ExportFormat = "svg" | "mermaid";
 
@@ -54,7 +55,7 @@ async function resolveOutPath(
 export async function runExport(options: ExportOptions): Promise<void> {
   const { format } = options;
   if (format !== "svg" && format !== "mermaid") {
-    console.error(`Unknown format "${format}". Use --format svg or --format mermaid.`);
+    errorBlock(`Unknown format "${format}".`, "Use --format svg or --format mermaid.");
     process.exitCode = 1;
     return;
   }
@@ -64,9 +65,9 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   const result = await resolveSchemaResult(projectPath, options.source);
   const schema = result?.schema ?? null;
-  for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
+  for (const text of result?.warnings ?? []) warning(text);
   if (!schema) {
-    console.error(await noSchemaMessage(projectPath, { command: "export", root: options.root }));
+    errorBlock(await noSchemaMessage(projectPath, { command: "export", root: options.root }));
     process.exitCode = 1;
     return;
   }
@@ -85,8 +86,6 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   // Absolute beats an unreadable ../../../… climb out of the cwd.
   const rel = displayPath(outPath);
-  console.log(
-    `  ✓ Exported ${schema.tables.length} tables, ${schema.relations.length} relations, ` +
-      `${schema.enums.length} enums → ${rel}`,
-  );
+  success(`Exported ${format.toUpperCase()} ${arrow()} ${rel}`);
+  detail(counts(schema));
 }

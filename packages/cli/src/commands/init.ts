@@ -11,6 +11,7 @@ import {
 } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
 import { suggestCommand } from "../suggest";
+import { arrow, counts, detail, errorBlock, heading, info, success, warning } from "../ui";
 
 export interface InitOptions {
   root: string;
@@ -41,7 +42,10 @@ export async function runInit(options: InitOptions): Promise<void> {
   if (options.source) {
     const forced = getParserByName(options.source);
     if (!forced) {
-      console.error(`Unknown source "${options.source}". Supported: ${PARSER_NAMES.join(", ")}.`);
+      errorBlock(
+        `Unknown source "${options.source}".`,
+        `Supported: ${PARSER_NAMES.join(", ")}.`,
+      );
       process.exitCode = 1;
       return;
     }
@@ -49,8 +53,10 @@ export async function runInit(options: InitOptions): Promise<void> {
   } else {
     const detected = await detectParser(projectPath);
     if (!detected) {
-      console.error(await noSchemaMessage(projectPath, { command: "init", root: options.root }));
-      console.error(`\nPass --source <${PARSER_NAMES.join("|")}> to force a parser.`);
+      errorBlock(
+        await noSchemaMessage(projectPath, { command: "init", root: options.root }),
+        `Pass --source <${PARSER_NAMES.join("|")}> to force a parser.`,
+      );
       process.exitCode = 1;
       return;
     }
@@ -59,8 +65,10 @@ export async function runInit(options: InitOptions): Promise<void> {
 
   const configPath = configWritePath(projectPath);
   if ((await fileExists(configPath)) && !options.force) {
-    console.error(
-      `${path.relative(process.cwd(), configPath) || configPath} already exists. Re-run with --force to overwrite, or edit the file by hand.`,
+    errorBlock(
+      `${path.relative(process.cwd(), configPath) || configPath} already exists.`,
+      "Re-run with --force to overwrite, or edit the file by hand.",
+      [suggestCommand("init", { root: options.root, extra: ["--force"] })],
     );
     process.exitCode = 1;
     return;
@@ -70,10 +78,10 @@ export async function runInit(options: InitOptions): Promise<void> {
   // parse poisons every later command in this directory (including the
   // monorepo hint), so it must never be left behind by a failed init.
   const result = await resolveSchemaResult(projectPath, parserName);
-  for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
+  for (const text of result?.warnings ?? []) warning(text);
   const schema = result?.schema ?? null;
   if (!schema) {
-    console.error(await noSchemaMessage(projectPath, { command: "init", root: options.root }));
+    errorBlock(await noSchemaMessage(projectPath, { command: "init", root: options.root }));
     process.exitCode = 1;
     return;
   }
@@ -81,20 +89,23 @@ export async function runInit(options: InitOptions): Promise<void> {
   const configDoc = `${JSON.stringify({ source: parserName }, null, 2)}\n`;
   await writeFile(configPath, configDoc, "utf8");
   const configRel = path.relative(process.cwd(), configPath) || configPath;
-  console.log(`  ✓ Wrote ${configRel} (source: ${parserName})`);
+
+  info(`Detected ${parserName} schema`);
+  success(`Wrote ${configRel}`);
 
   await saveSnapshot(projectPath, schema);
   const snapRel =
     path.relative(process.cwd(), snapshotPath(projectPath)) || snapshotPath(projectPath);
-  console.log(
-    `  ✓ Snapshot written: ${schema.tables.length} tables, ${schema.relations.length} relations, ` +
-      `${schema.enums.length} enums → ${snapRel}`,
-  );
+  success(`Snapshot written ${arrow()} ${snapRel}`);
+  detail(counts(schema));
 
-  console.log(`
-Next steps:
-  1. Commit ${configRel} and ${snapRel}
-  2. Add \`${suggestCommand("check", { root: options.root })}\` to CI (see the GitHub Action in the README)
-  3. Run \`${suggestCommand("dev", { root: options.root })}\` for a live ER diagram
-`);
+  // Suggestions print raw: they are meant to be copied into a shell.
+  process.stdout.write(`\n  ${heading("Next steps")}\n`);
+  process.stdout.write(`    1. Commit ${configRel} and ${snapRel}\n`);
+  process.stdout.write(
+    `    2. Add \`${suggestCommand("check", { root: options.root })}\` to CI (see the GitHub Action in the README)\n`,
+  );
+  process.stdout.write(
+    `    3. Run \`${suggestCommand("dev", { root: options.root })}\` for a live ER diagram\n\n`,
+  );
 }

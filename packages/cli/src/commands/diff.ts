@@ -1,6 +1,8 @@
 import { diff } from "@schemat/core";
 import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
+import { styleDiffText } from "../diff-style";
 import { resolveSchemaFromResult } from "../schema-source";
+import { errorBlock, warning } from "../ui";
 
 export interface DiffOptions {
   before: string;
@@ -20,20 +22,22 @@ export interface DiffOptions {
 export async function runDiff(options: DiffOptions): Promise<void> {
   const beforeResult = await resolveSchemaFromResult(options.before, options.source);
   const before = beforeResult?.schema ?? null;
-  for (const warning of beforeResult?.warnings ?? []) console.error(`Warning: ${warning}`);
+  for (const text of beforeResult?.warnings ?? []) warning(text);
   if (!before) {
-    console.error(
-      `No schema found at "${options.before}" (expected a project dir, .prisma, or .sql).`,
+    errorBlock(
+      `No schema found at "${options.before}".`,
+      "Expected a project dir, a .prisma file, or a .sql file.",
     );
     process.exitCode = 1;
     return;
   }
   const afterResult = await resolveSchemaFromResult(options.after, options.source);
   const after = afterResult?.schema ?? null;
-  for (const warning of afterResult?.warnings ?? []) console.error(`Warning: ${warning}`);
+  for (const text of afterResult?.warnings ?? []) warning(text);
   if (!after) {
-    console.error(
-      `No schema found at "${options.after}" (expected a project dir, .prisma, or .sql).`,
+    errorBlock(
+      `No schema found at "${options.after}".`,
+      "Expected a project dir, a .prisma file, or a .sql file.",
     );
     process.exitCode = 1;
     return;
@@ -41,12 +45,14 @@ export async function runDiff(options: DiffOptions): Promise<void> {
 
   const changes = diff(before, after);
 
+  // json / markdown are consumed by other programs: emit them exactly as the
+  // renderer produced them, with no styling of any kind.
   if (options.format === "json") {
     process.stdout.write(`${JSON.stringify(changes, null, 2)}\n`);
   } else if (options.format === "markdown") {
     process.stdout.write(renderDiffMarkdown(changes));
   } else {
-    process.stdout.write(renderDiffText(changes));
+    process.stdout.write(styleDiffText(renderDiffText(changes), process.stdout));
   }
 
   if (changes.length > 0) process.exitCode = 1;

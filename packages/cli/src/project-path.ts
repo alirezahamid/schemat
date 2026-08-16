@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import type { Invocation } from "./suggest";
 import { suggestCommand } from "./suggest";
+import { errorBlock } from "./ui";
 
 /**
  * Verify `--root` points at a directory before anything tries to read inside
@@ -19,22 +20,19 @@ export async function ensureProjectDir(
   try {
     isDirectory = (await stat(projectPath)).isDirectory();
   } catch {
-    console.error(
-      `--root path does not exist: ${projectPath}\n` +
-        `Pass a project directory, e.g. \`${suggestCommand(invocation.command, { root: "." })}\`.`,
-    );
+    errorBlock(`--root path does not exist: ${projectPath}`, "Pass a project directory, e.g.:", [
+      suggestCommand(invocation.command, { root: "." }),
+    ]);
     process.exitCode = 1;
     return false;
   }
 
   if (!isDirectory) {
     const parent = path.relative(process.cwd(), path.dirname(path.dirname(projectPath)));
-    console.error(
-      `--root must be a directory, but ${projectPath} is a file.\n` +
-        `Point --root at the project directory instead, e.g. \`${suggestCommand(
-          invocation.command,
-          { root: parent || "." },
-        )}\`.`,
+    errorBlock(
+      `--root must be a directory, but ${projectPath} is a file.`,
+      "Point --root at the project directory instead, e.g.:",
+      [suggestCommand(invocation.command, { root: parent || "." })],
     );
     process.exitCode = 1;
     return false;

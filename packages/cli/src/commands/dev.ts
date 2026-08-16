@@ -4,6 +4,7 @@ import { ensureProjectDir } from "../project-path";
 import { noSchemaMessage, resolveParser } from "../schema-source";
 import { startServer } from "../server";
 import { suggestCommand } from "../suggest";
+import { arrow, detail, errorBlock, heading, info, paint, symbol, warning } from "../ui";
 import { watchSchema } from "../watch";
 
 export interface DevOptions {
@@ -34,11 +35,10 @@ function parsePort(value: string | number): number | null {
 export async function runDev(options: DevOptions): Promise<void> {
   const port = parsePort(options.port);
   if (port === null) {
-    console.error(
-      `Invalid --port "${options.port}". Pass a whole number between 0 and ${MAX_PORT}, or use \`${suggestCommand(
-        "dev",
-        { root: options.root, extra: ["--port", "0"] },
-      )}\` to let the OS pick a free port.`,
+    errorBlock(
+      `Invalid --port "${options.port}".`,
+      `Pass a whole number between 0 and ${MAX_PORT}, or let the OS pick a free port:`,
+      [suggestCommand("dev", { root: options.root, extra: ["--port", "0"] })],
     );
     process.exitCode = 1;
     return;
@@ -49,14 +49,14 @@ export async function runDev(options: DevOptions): Promise<void> {
 
   const parser = await resolveParser(projectPath, options.source);
   if (!parser) {
-    console.error(await noSchemaMessage(projectPath, { command: "dev", root: options.root }));
+    errorBlock(await noSchemaMessage(projectPath, { command: "dev", root: options.root }));
     process.exitCode = 1;
     return;
   }
 
   const initial = normalizeParserOutput(await parser.parse({ projectPath }));
   const schema = initial.schema;
-  for (const warning of initial.warnings) console.error(`Warning: ${warning}`);
+  for (const text of initial.warnings) warning(text);
 
   let server: Awaited<ReturnType<typeof startServer>>;
   try {
@@ -70,33 +70,36 @@ export async function runDev(options: DevOptions): Promise<void> {
     // 65536, which the CLI itself rejects.
     const retry =
       port < MAX_PORT
-        ? `Pick another port, e.g.:\n  ${suggestCommand("dev", {
-            root: options.root,
-            extra: ["--port", String(port + 1)],
-          })}\n`
-        : "";
-    console.error(
-      `Port ${port} is already in use.\n${retry}Or let the OS choose a free one:\n  ${anyPort}`,
+        ? [suggestCommand("dev", { root: options.root, extra: ["--port", String(port + 1)] })]
+        : [];
+    errorBlock(
+      `Port ${port} is already in use.`,
+      "Pick another port, or let the OS choose a free one:",
+      [...retry, anyPort],
     );
     process.exitCode = 1;
     return;
   }
 
   const url = `http://localhost:${server.port}`;
-  console.log(`\n  Schemat running at ${url}`);
-  console.log(`  Watching ${path.relative(process.cwd(), projectPath) || "."} for changes\n`);
+  const watched = path.relative(process.cwd(), projectPath) || ".";
+  // Calm banner: the URL is the one thing worth finding at a glance.
+  process.stdout.write(`\n  ${heading("Schemat")}  ${paint(process.stdout, "info", url)}\n`);
+  detail(`watching ${watched} ${arrow()} live reload on schema changes`);
+  process.stdout.write("\n");
 
   const watcher = watchSchema(
     parser,
     projectPath,
     (next, warnings) => {
-      for (const warning of warnings) console.error(`Warning: ${warning}`);
+      for (const text of warnings) warning(text);
       server.broadcast(next);
-      console.log(
-        `  ↻ schema reloaded (${next.tables.length} tables, ${next.relations.length} relations)`,
+      // One quiet line per successful rebuild — no per-file spam.
+      info(
+        `${symbol("reload")} reloaded ${arrow()} ${next.tables.length} tables, ${next.relations.length} relations`,
       );
     },
-    (err) => console.error("  parse error:", err instanceof Error ? err.message : err),
+    (err) => errorBlock("Schema parse failed", err instanceof Error ? err.message : String(err)),
   );
 
   const shutdown = async () => {
