@@ -1,10 +1,12 @@
 import path from "node:path";
 import { diff } from "@schemat/core";
 import { renderDiffMarkdown, renderDiffText } from "@schemat/render/node";
+import { styleDiffText } from "../diff-style";
 import { ensureProjectDir } from "../project-path";
 import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 import { loadSnapshot, snapshotPath } from "../snapshot";
 import { suggestCommand } from "../suggest";
+import { errorBlock, warning } from "../ui";
 
 export interface CheckOptions {
   root: string;
@@ -25,9 +27,9 @@ export async function runCheck(options: CheckOptions): Promise<void> {
   const result = await resolveSchemaResult(projectPath, options.source);
   const current = result?.schema ?? null;
   const warnings = result?.warnings ?? [];
-  for (const warning of warnings) console.error(`Warning: ${warning}`);
+  for (const text of warnings) warning(text);
   if (!current) {
-    console.error(await noSchemaMessage(projectPath, { command: "check", root: options.root }));
+    errorBlock(await noSchemaMessage(projectPath, { command: "check", root: options.root }));
     process.exitCode = 1;
     return;
   }
@@ -36,9 +38,10 @@ export async function runCheck(options: CheckOptions): Promise<void> {
   if (!snapshot) {
     const rel =
       path.relative(process.cwd(), snapshotPath(projectPath)) || snapshotPath(projectPath);
-    console.error(
-      `No committed snapshot at ${rel}.\n` +
-        `Run \`${suggestCommand("snapshot", { root: options.root })}\` and commit the result first.`,
+    errorBlock(
+      `No committed snapshot at ${rel}.`,
+      "Take a snapshot and commit it, so check has a baseline to compare against.",
+      [suggestCommand("snapshot", { root: options.root })],
     );
     process.exitCode = 1;
     return;
@@ -46,15 +49,18 @@ export async function runCheck(options: CheckOptions): Promise<void> {
 
   // Drift = the snapshot (committed docs) no longer matches the live schema.
   const changes = diff(snapshot, current);
-  const output =
-    options.format === "markdown"
-      ? // The markdown report is what the Action posts on a PR, so the command
-        // it tells the reader to run must carry their --root.
-        renderDiffMarkdown(changes, {
-          snapshotCommand: suggestCommand("snapshot", { root: options.root }),
-        })
-      : renderDiffText(changes);
-  process.stdout.write(output);
+  if (options.format === "markdown") {
+    // Machine-readable: byte-clean, never styled. The markdown report is what
+    // the Action posts on a PR, so the command it tells the reader to run must
+    // carry their --root.
+    process.stdout.write(
+      renderDiffMarkdown(changes, {
+        snapshotCommand: suggestCommand("snapshot", { root: options.root }),
+      }),
+    );
+  } else {
+    process.stdout.write(styleDiffText(renderDiffText(changes), process.stdout));
+  }
 
   if (changes.length > 0) {
     // Non-zero exit fails the CI job.

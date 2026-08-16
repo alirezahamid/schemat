@@ -3,6 +3,7 @@ import { ensureProjectDir } from "../project-path";
 import { noSchemaMessage, resolveSchemaResult } from "../schema-source";
 import { saveSnapshot, snapshotPath } from "../snapshot";
 import { suggestCommand } from "../suggest";
+import { arrow, counts, detail, errorBlock, success, warning } from "../ui";
 
 export interface SnapshotOptions {
   root: string;
@@ -20,20 +21,18 @@ export async function runSnapshot(options: SnapshotOptions): Promise<void> {
 
   const result = await resolveSchemaResult(projectPath, options.source);
   const schema = result?.schema ?? null;
-  for (const warning of result?.warnings ?? []) console.error(`Warning: ${warning}`);
+  for (const text of result?.warnings ?? []) warning(text);
   if (!schema) {
-    console.error(await noSchemaMessage(projectPath, { command: "snapshot", root: options.root }));
+    errorBlock(await noSchemaMessage(projectPath, { command: "snapshot", root: options.root }));
     process.exitCode = 1;
     return;
   }
 
   await saveSnapshot(projectPath, schema);
   const rel = path.relative(process.cwd(), snapshotPath(projectPath)) || snapshotPath(projectPath);
-  console.log(
-    `  ✓ Snapshot written: ${schema.tables.length} tables, ${schema.relations.length} relations, ` +
-      `${schema.enums.length} enums → ${rel}`,
-  );
-  console.log(
-    `    Commit this file so \`${suggestCommand("check", { root: options.root })}\` can detect drift in CI.`,
+  success(`Snapshot written ${arrow()} ${rel}`);
+  detail(counts(schema));
+  detail(
+    `Commit this file so \`${suggestCommand("check", { root: options.root })}\` detects drift in CI.`,
   );
 }

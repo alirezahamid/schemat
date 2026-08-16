@@ -10,6 +10,7 @@ import { runInit } from "../src/commands/init";
 import { runSnapshot } from "../src/commands/snapshot";
 import { createProgram } from "../src/program";
 import { noSchemaMessage } from "../src/schema-source";
+import { stripAnsi } from "../src/ui";
 
 /**
  * The regression guard for the "suggestion that doesn't run" class of bug:
@@ -32,13 +33,40 @@ function buildProgram(): Command {
   return program;
 }
 
+/**
+ * Capture everything the CLI prints, on every channel it prints through.
+ *
+ * The CLI writes styled output straight to the streams (it has to: the colour
+ * decision is per-stream), so spying on console alone would silently stop
+ * seeing most suggestions and let this guard pass while broken.
+ */
+function captureOutput(): { text: () => string } {
+  const lines: string[] = [];
+  const push = (chunk: unknown) => {
+    lines.push(String(chunk));
+    return true;
+  };
+  vi.spyOn(console, "log").mockImplementation((...args) => lines.push(args.join(" ")));
+  vi.spyOn(console, "error").mockImplementation((...args) => lines.push(args.join(" ")));
+  vi.spyOn(process.stdout, "write").mockImplementation(push);
+  vi.spyOn(process.stderr, "write").mockImplementation(push);
+  return { text: () => lines.join("\n") };
+}
+
 /** Every `schemat …` command found in a blob of CLI output. */
-function extractSuggestions(text: string): string[] {
+function extractSuggestions(raw: string): string[] {
   const found = new Set<string>();
+  // Strip styling first: a suggestion is only useful if it survives being
+  // copied out of coloured output, so the guard must see the same characters
+  // the user's clipboard would.
+  const text = stripAnsi(raw);
   // Suggestions appear either on their own indented line or inside backticks.
   for (const line of text.split("\n")) {
     for (const m of line.matchAll(/`(schemat [^`]+)`/g)) found.add(m[1].trim());
-    const bare = line.match(/^\s+(schemat\s+.+?)\s*$/);
+    // A suggestion may be printed on its own line, optionally behind a list
+    // marker (`• schemat …` / `- schemat …`). The marker is decoration; the
+    // command after it is what the user copies.
+    const bare = line.match(/^\s*(?:[•*-]\s+)?(schemat\s+.+?)\s*$/);
     if (bare && !line.includes("`")) found.add(bare[1].trim());
   }
   return [...found];
@@ -116,13 +144,7 @@ describe("every emitted suggestion is copy-pasteable", () => {
     mkdirSync(prisma, { recursive: true });
     writeFileSync(path.join(prisma, "schema.prisma"), "model User {\n  id Int @id\n}\n", "utf8");
 
-    const lines: string[] = [];
-    vi.spyOn(console, "log").mockImplementation((...args) => lines.push(args.join(" ")));
-    vi.spyOn(console, "error").mockImplementation((...args) => lines.push(args.join(" ")));
-    vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
-      lines.push(String(chunk));
-      return true;
-    });
+    const output = captureOutput();
 
     // check without a snapshot → "run snapshot first"
     await runCheck({ root, format: "text" });
@@ -140,7 +162,7 @@ describe("every emitted suggestion is copy-pasteable", () => {
     // check with drift in markdown → "regenerate it with …"
     await runCheck({ root, format: "markdown" });
 
-    const suggestions = extractSuggestions(lines.join("\n"));
+    const suggestions = extractSuggestions(output.text());
     expect(suggestions).toEqual(
       expect.arrayContaining([
         `schemat snapshot --root ${root}`,
@@ -170,9 +192,7 @@ describe("every emitted suggestion is copy-pasteable", () => {
       });
     });
 
-    const lines: string[] = [];
-    vi.spyOn(console, "log").mockImplementation((...args) => lines.push(args.join(" ")));
-    vi.spyOn(console, "error").mockImplementation((...args) => lines.push(args.join(" ")));
+    const captured = captureOutput();
 
     try {
       await runDev({ root, port });
@@ -180,7 +200,7 @@ describe("every emitted suggestion is copy-pasteable", () => {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
     }
 
-    const output = lines.join("\n");
+    const output = stripAnsi(captured.text());
     expect(output).toContain(`Port ${port} is already in use.`);
     expect(process.exitCode).toBe(1);
 
@@ -195,12 +215,11 @@ describe("every emitted suggestion is copy-pasteable", () => {
   });
 
   it("rejects a bad --port with a message naming schemat and the flag", async () => {
-    const lines: string[] = [];
-    vi.spyOn(console, "error").mockImplementation((...args) => lines.push(args.join(" ")));
+    const captured = captureOutput();
 
     await runDev({ root: ".", port: "abc" });
 
-    const output = lines.join("\n");
+    const output = stripAnsi(captured.text());
     expect(output).toContain('Invalid --port "abc"');
     expect(process.exitCode).toBe(1);
     for (const s of extractSuggestions(output)) assertRunnable(s);
@@ -215,13 +234,11 @@ describe("every emitted suggestion is copy-pasteable", () => {
       "utf8",
     );
 
-    const lines: string[] = [];
-    vi.spyOn(console, "log").mockImplementation((...args) => lines.push(args.join(" ")));
-    vi.spyOn(console, "error").mockImplementation((...args) => lines.push(args.join(" ")));
+    const captured = captureOutput();
 
     await runInit({ root: "apps/api" });
 
-    const suggestions = extractSuggestions(lines.join("\n"));
+    const suggestions = extractSuggestions(captured.text());
     expect(suggestions.length).toBeGreaterThan(0);
     for (const s of suggestions) {
       assertRunnable(s);
