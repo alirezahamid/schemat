@@ -1,6 +1,6 @@
 {
   "name": "@schemat/parser-typeorm",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TypeORM parser for Schemat (entity decorators -> IR, static AST).",
   "license": "MIT",
   "type": "module",
