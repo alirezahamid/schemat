@@ -1,0 +1,41 @@
+---
+title: Schemat
+description: Git-native database schema documentation. Live, interactive ER diagrams from your repo.
+template: splash
+hero:
+  tagline: Point it at your repo, get a live, interactive ER diagram in the browser.
+  actions:
+    - text: Install
+      link: /start/install/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/alirezahamid/schemat
+      icon: external
+      variant: minimal
+---
+
+Schemat is an open-source, local-first tool for documenting database schemas — like [dbdiagram.io](https://dbdiagram.io), but your schema lives in git and the diagram is a derived view. Edit your schema in your editor, watch the diagram update live in the browser. No cloud, no account, no lock-in.
+
+## Why
+
+- **Git-native.** Your schema source (Prisma, SQL, DBML, Drizzle, TypeORM, MikroORM, Mongoose, and Sequelize today; community parsers via config) is the single source of truth. The diagram follows the repo.
+- **Local-first.** Runs entirely on your machine. Nothing leaves your laptop.
+- **Live.** `schemat dev` watches your schema files and pushes changes to an interactive canvas over WebSocket — edit, save, see it instantly.
+- **CI-ready.** `schemat check` fails your build when the committed schema docs drift from the live schema. Ships with a GitHub Action.
+- **Modular.** A small canonical IR sits between pluggable parsers and the renderer. Adding a new schema source is a new package, not a rewrite.
+
+## Status
+
+Early. v1 is **read-only**: the repo is the source of truth and the browser renders it. In-browser editing is a future milestone.
+
+## Quick start
+
+```bash
+# from a repo that already has a Prisma / Drizzle / TypeORM / … schema
+schemat init
+# → writes schemat.config.json, takes an initial .schemat/schema.snapshot.json
+# → prints next steps (commit, add check to CI, run dev)
+
+schemat dev       # live ER diagram
+schemat check     # CI drift gate (after you've committed the snapshot)
+```

@@ -1,0 +1,59 @@
+/* Minimal surface styling on top of the Starlight token overrides. */
+
+:root {
+  --sl-color-gray-1: var(--s-text-strong);
+  --sl-color-gray-2: var(--s-text);
+  --sl-color-gray-3: var(--s-text-dim);
+  --sl-color-gray-4: var(--s-border-strong);
+  --sl-color-gray-5: var(--s-border);
+  --sl-color-gray-6: var(--s-surface);
+  --sl-color-gray-7: var(--s-raised);
+  --sl-color-black: var(--s-bg);
+}
+
+a {
+  color: var(--s-link);
+}
+
+.site-title,
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+  color: var(--s-text-strong);
+  letter-spacing: -0.01em;
+}
+
+.sl-markdown-content :not(a) > code {
+  border: 1px solid var(--s-border);
+  border-radius: var(--s-radius);
+  padding: 0 var(--s-space-1);
+}
+
+.sl-markdown-content table {
+  border-collapse: collapse;
+}
+
+.sl-markdown-content th,
+.sl-markdown-content td {
+  border: 1px solid var(--s-border);
+  padding: var(--s-space-2) var(--s-space-3);
+}
+
+.sl-markdown-content th {
+  color: var(--s-text-strong);
+  font-weight: 600;
+}
+
+.expressive-code .frame pre {
+  border-radius: var(--s-radius);
+}
+
+/* Landing hero — static, no canvas island in this PR. */
+.hero h1 {
+  font-size: var(--s-text-4xl);
+}
+
+.hero .tagline {
+  color: var(--s-text);
+}

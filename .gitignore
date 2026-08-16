@@ -30,3 +30,6 @@ examples/**/node_modules/
 
 # scratch output from the REAL_WORLD_EVIDENCE.md reproduction steps
 packages/parser-sql/.evidence/
+
+# astro generated types / content cache
+.astro/

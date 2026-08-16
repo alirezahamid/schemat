@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "alirezahamid/schemat" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "alirezahamid/schemat"
+    }
+  ],
   "commit": false,
   "fixed": [
     [
@@ -22,5 +27,9 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": []
+  "ignore": [],
+  "privatePackages": {
+    "version": false,
+    "tag": false
+  }
 }
