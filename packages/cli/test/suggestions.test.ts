@@ -63,7 +63,10 @@ function extractSuggestions(raw: string): string[] {
   // Suggestions appear either on their own indented line or inside backticks.
   for (const line of text.split("\n")) {
     for (const m of line.matchAll(/`(schemat [^`]+)`/g)) found.add(m[1].trim());
-    const bare = line.match(/^\s+(schemat\s+.+?)\s*$/);
+    // A suggestion may be printed on its own line, optionally behind a list
+    // marker (`• schemat …` / `- schemat …`). The marker is decoration; the
+    // command after it is what the user copies.
+    const bare = line.match(/^\s*(?:[•*-]\s+)?(schemat\s+.+?)\s*$/);
     if (bare && !line.includes("`")) found.add(bare[1].trim());
   }
   return [...found];

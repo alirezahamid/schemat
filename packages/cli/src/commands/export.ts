@@ -86,6 +86,7 @@ export async function runExport(options: ExportOptions): Promise<void> {
 
   // Absolute beats an unreadable ../../../… climb out of the cwd.
   const rel = displayPath(outPath);
-  success(`Exported ${format.toUpperCase()} ${arrow()} ${rel}`);
+  const label = format === "svg" ? "SVG" : "Mermaid";
+  success(`Exported ${label} ${arrow()} ${rel}`);
   detail(counts(schema));
 }

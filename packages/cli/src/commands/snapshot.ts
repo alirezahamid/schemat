@@ -32,5 +32,7 @@ export async function runSnapshot(options: SnapshotOptions): Promise<void> {
   const rel = path.relative(process.cwd(), snapshotPath(projectPath)) || snapshotPath(projectPath);
   success(`Snapshot written ${arrow()} ${rel}`);
   detail(counts(schema));
-  detail(`Commit this file so \`${suggestCommand("check", { root: options.root })}\` detects drift in CI.`);
+  detail(
+    `Commit this file so \`${suggestCommand("check", { root: options.root })}\` detects drift in CI.`,
+  );
 }

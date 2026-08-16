@@ -34,7 +34,7 @@
     "ws": "8.21.3"
   },
   "devDependencies": {
-    "@types/node": "20.17.10",
+    "@types/node": "22.18.0",
     "@types/ws": "8.18.1",
     "tsup": "8.3.5",
     "tsx": "4.19.2",

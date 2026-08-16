@@ -42,10 +42,7 @@ export async function runInit(options: InitOptions): Promise<void> {
   if (options.source) {
     const forced = getParserByName(options.source);
     if (!forced) {
-      errorBlock(
-        `Unknown source "${options.source}".`,
-        `Supported: ${PARSER_NAMES.join(", ")}.`,
-      );
+      errorBlock(`Unknown source "${options.source}".`, `Supported: ${PARSER_NAMES.join(", ")}.`);
       process.exitCode = 1;
       return;
     }

@@ -22,6 +22,21 @@ let dir: string;
 let cwd: string;
 const savedEnv = { ...process.env };
 
+/**
+ * Replace the environment wholesale.
+ *
+ * Building a fresh object (rather than deleting keys) is what makes "this
+ * variable is UNSET" expressible — `process.env.X = undefined` stores the
+ * string "undefined", which the colour rules would read as a real value.
+ */
+function setEnv(overrides: Record<string, string> = {}, unset: readonly string[] = []): void {
+  const next: Record<string, string> = {};
+  for (const [key, value] of Object.entries({ ...savedEnv, ...overrides })) {
+    if (value !== undefined && !unset.includes(key)) next[key] = value;
+  }
+  process.env = next;
+}
+
 /** Capture stdout and stderr separately — they are styled independently. */
 function capture(): { stdout: () => string; stderr: () => string } {
   const out: string[] = [];
@@ -51,9 +66,7 @@ beforeEach(() => {
   process.chdir(dir);
   // Colour forced on: the point is to prove the JSON/markdown paths stay clean
   // even when everything else is styled.
-  process.env.FORCE_COLOR = "1";
-  process.env.NO_COLOR = undefined;
-  delete process.env.NO_COLOR;
+  setEnv({ FORCE_COLOR: "1" }, ["NO_COLOR"]);
 });
 
 afterEach(() => {
@@ -146,6 +159,41 @@ describe("machine-readable output never contains ANSI", () => {
   });
 });
 
+describe("copy-pasteable commands never carry styling", () => {
+  it("suggestion lines in a coloured error contain no escape sequences", async () => {
+    // A monorepo, so the "no schema here — try these roots" hint fires and the
+    // error block prints real `schemat …` lines.
+    for (const svc of ["identity", "billing"]) {
+      writeSchema(path.join(dir, "apps", svc), "model User {\n  id Int @id\n}\n");
+    }
+
+    const io = capture();
+    const { runSnapshot } = await import("../src/commands/snapshot");
+    await runSnapshot({ root: "." });
+    const stderr = io.stderr();
+
+    // The block as a whole IS styled…
+    expect(hasAnsi(stderr)).toBe(true);
+
+    // …but every line that is a command must be copyable verbatim.
+    const commandLines = stripAnsi(stderr)
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("schemat "));
+    expect(commandLines.length).toBeGreaterThan(0);
+
+    for (const command of commandLines) {
+      const raw = stderr.split("\n").find((l) => stripAnsi(l).trim() === command);
+      expect(raw, `command line not found in raw output: ${command}`).toBeDefined();
+      expect(
+        hasAnsi((raw as string).trim()),
+        `ANSI inside a copy-pasteable command: ${JSON.stringify(raw)}`,
+      ).toBe(false);
+    }
+    expect(process.exitCode).toBe(1);
+  });
+});
+
 describe("colour and symbol environment rules", () => {
   const stream = (isTTY: boolean) => ({ isTTY }) as unknown as NodeJS.WriteStream;
 
@@ -155,32 +203,24 @@ describe("colour and symbol environment rules", () => {
 
   it("NO_COLOR disables colour for any value, including 0", () => {
     for (const value of ["", "1", "0", "false"]) {
-      process.env = { ...savedEnv };
-      process.env.NO_COLOR = value;
-      delete process.env.FORCE_COLOR;
+      setEnv({ NO_COLOR: value }, ["FORCE_COLOR"]);
       // The spec is about presence: only an EMPTY value is ignored.
       expect(colorEnabled(stream(true)), `NO_COLOR=${JSON.stringify(value)}`).toBe(value === "");
     }
   });
 
   it("FORCE_COLOR=0 turns colour off even on a TTY", () => {
-    process.env = { ...savedEnv };
-    process.env.FORCE_COLOR = "0";
+    setEnv({ FORCE_COLOR: "0" });
     expect(colorEnabled(stream(true))).toBe(false);
   });
 
   it("FORCE_COLOR=1 turns colour on for a non-TTY", () => {
-    process.env = { ...savedEnv };
-    delete process.env.NO_COLOR;
-    process.env.FORCE_COLOR = "1";
+    setEnv({ FORCE_COLOR: "1" }, ["NO_COLOR"]);
     expect(colorEnabled(stream(false))).toBe(true);
   });
 
   it("auto-detects per stream, not globally", () => {
-    process.env = { ...savedEnv };
-    delete process.env.NO_COLOR;
-    delete process.env.FORCE_COLOR;
-    process.env.TERM = "xterm-256color";
+    setEnv({ TERM: "xterm-256color" }, ["NO_COLOR", "FORCE_COLOR"]);
     // A redirected stdout must not drag stderr's styling down with it, and
     // vice versa: each stream answers for itself.
     expect(colorEnabled(stream(false))).toBe(false);
@@ -188,24 +228,17 @@ describe("colour and symbol environment rules", () => {
   });
 
   it("TERM=dumb disables colour", () => {
-    process.env = { ...savedEnv };
-    delete process.env.NO_COLOR;
-    delete process.env.FORCE_COLOR;
-    process.env.TERM = "dumb";
+    setEnv({ TERM: "dumb" }, ["NO_COLOR", "FORCE_COLOR"]);
     expect(colorEnabled(stream(true))).toBe(false);
   });
 
   it("paint is a no-op when colour is off", () => {
-    process.env = { ...savedEnv };
-    process.env.NO_COLOR = "1";
+    setEnv({ NO_COLOR: "1" });
     expect(paint(stream(true), "success", "done")).toBe("done");
   });
 
   it("falls back to ASCII symbols in a non-UTF-8 locale", () => {
-    process.env = { ...savedEnv };
-    process.env.LC_ALL = "C";
-    process.env.LC_CTYPE = "C";
-    process.env.LANG = "C";
+    setEnv({ LC_ALL: "C", LC_CTYPE: "C", LANG: "C" });
     expect(symbol("success")).toBe("v");
     expect(symbol("error")).toBe("x");
     expect(symbol("warning")).toBe("!");
@@ -213,8 +246,7 @@ describe("colour and symbol environment rules", () => {
   });
 
   it("uses Unicode symbols in a UTF-8 locale", () => {
-    process.env = { ...savedEnv };
-    process.env.LC_ALL = "en_US.UTF-8";
+    setEnv({ LC_ALL: "en_US.UTF-8" });
     expect(symbol("success")).toBe("✔");
     expect(symbol("error")).toBe("✖");
     expect(symbol("warning")).toBe("⚠");

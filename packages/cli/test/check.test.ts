@@ -40,6 +40,7 @@ describe("runCheck", () => {
       enums: [{ name: "Status", values: ["DRAFT", "PUBLISHED"] }],
     });
     const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await runCheck({ root: ".", format: "text" });
@@ -52,12 +53,15 @@ describe("runCheck", () => {
 
   it("keeps parser warnings out of markdown stdout", async () => {
     const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // Warnings are written to the stderr STREAM (the colour decision is made
+    // per stream), so capture the stream rather than console.error.
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await runCheck({ root: ".", format: "markdown" });
 
     const stdoutText = stdout.mock.calls.map(([chunk]) => String(chunk)).join("");
-    const stderrText = stderr.mock.calls.flat().join("\n");
+    const stderrText = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
     expect(stdoutText).not.toContain("Unsupported SQL statement");
     expect(stdoutText).not.toContain("Parser warnings");
     expect(stderrText).toContain("Unsupported SQL statement");

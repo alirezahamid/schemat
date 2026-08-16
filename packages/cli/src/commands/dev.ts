@@ -4,7 +4,7 @@ import { ensureProjectDir } from "../project-path";
 import { noSchemaMessage, resolveParser } from "../schema-source";
 import { startServer } from "../server";
 import { suggestCommand } from "../suggest";
-import { arrow, detail, errorBlock, heading, info, paint, symbol, warning } from "../ui";
+import { arrow, counts, detail, errorBlock, heading, info, paint, symbol, warning } from "../ui";
 import { watchSchema } from "../watch";
 
 export interface DevOptions {
@@ -95,9 +95,7 @@ export async function runDev(options: DevOptions): Promise<void> {
       for (const text of warnings) warning(text);
       server.broadcast(next);
       // One quiet line per successful rebuild — no per-file spam.
-      info(
-        `${symbol("reload")} reloaded ${arrow()} ${next.tables.length} tables, ${next.relations.length} relations`,
-      );
+      info(`${symbol("reload")} reloaded ${arrow()} ${counts(next)}`);
     },
     (err) => errorBlock("Schema parse failed", err instanceof Error ? err.message : String(err)),
   );

@@ -162,6 +162,9 @@ export function detail(message: string, stream: OutputStream = process.stdout): 
   stream.write(`    ${paint(stream, "muted", message)}\n`);
 }
 
+/** A line whose content is a runnable command rather than prose. */
+const COMMAND_LINE = /^\s*schemat\s/;
+
 /**
  * Render a multi-line error with hierarchy: headline, detail, then the
  * suggested command.
@@ -172,10 +175,27 @@ export function detail(message: string, stream: OutputStream = process.stdout): 
  */
 export function errorBlock(headline: string, body?: string, suggestions?: readonly string[]): void {
   const err = process.stderr;
-  err.write(`\n  ${paint(err, "error", symbol("error"))} ${paint(err, "strong", headline)}\n`);
-  if (body) {
-    for (const l of body.split("\n")) {
-      err.write(l ? `    ${paint(err, "muted", l)}\n` : "\n");
+  // A message from a third-party parser arrives as one multi-line blob. Only
+  // its first line is the headline; the rest is detail, or the "headline"
+  // becomes a bold wall of text.
+  const [first = headline, ...rest] = headline.split("\n");
+  const detailLines = [...rest, ...(body ? body.split("\n") : [])];
+
+  err.write(`\n  ${paint(err, "error", symbol("error"))} ${paint(err, "strong", first)}\n`);
+  for (const l of detailLines) {
+    if (!l) {
+      err.write("\n");
+    } else if (hasAnsi(l)) {
+      // Already styled by whoever produced it (e.g. Prisma's own validation
+      // output). Wrapping it again interleaves reset codes and corrupts both —
+      // pass it through, or strip it when this stream may not carry colour.
+      err.write(`    ${colorEnabled(err) ? l : stripAnsi(l)}\n`);
+    } else if (COMMAND_LINE.test(l)) {
+      // A line that IS a command stays raw, so selecting it in a terminal
+      // yields exactly the characters that need to reach the shell.
+      err.write(`    ${l}\n`);
+    } else {
+      err.write(`    ${paint(err, "muted", l)}\n`);
     }
   }
   if (suggestions?.length) {
