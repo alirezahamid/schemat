@@ -10,8 +10,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Lint, typecheck, test, build
+  # Which parts of the tree changed. Path filtering lives at the JOB level, not
+  # on the workflow trigger: a skipped workflow reports no status at all, so a
+  # docs-only PR would block forever against a required check.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          RANGE=""
+          if [ "$EVENT_NAME" = "pull_request" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            RANGE="${BASE_SHA}...HEAD"
+          elif [ -n "${BEFORE_SHA:-}" ] && git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            RANGE="${BEFORE_SHA}..HEAD"
+          fi
+
+          if [ -z "$RANGE" ]; then
+            # Cannot determine a diff (first push, force push, shallow history).
+            # Fail safe: run everything.
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "docs=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # --no-renames: with rename detection on, a file moved across the
+          # packages/docs boundary is reported only at its destination, so
+          # moving a source file into docs would skip the code job entirely.
+          FILES="$(git diff --no-renames --name-only "$RANGE")"
+          echo "Changed files:"
+          echo "$FILES"
+
+          if echo "$FILES" | grep -qv '^packages/docs/'; then CODE=true; else CODE=false; fi
+          if echo "$FILES" | grep -q '^packages/docs/'; then DOCS=true; else DOCS=false; fi
+          # Root tooling/lockfile changes affect both.
+          if echo "$FILES" | grep -qE '^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|biome\.json|tsconfig\.base\.json|\.github/workflows/)'; then
+            CODE=true
+            DOCS=true
+          fi
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "docs=$DOCS" >> "$GITHUB_OUTPUT"
+
+  code:
+    name: Code — lint, typecheck, test, build
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -39,3 +95,55 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  docs:
+    name: Docs — build, typecheck, contrast
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build docs site
+        run: pnpm --filter @schemat/docs build
+
+      - name: Typecheck docs site
+        run: pnpm --filter @schemat/docs typecheck
+
+      - name: Contrast test
+        run: pnpm --filter @schemat/docs test
+
+  # Single required status check. Always runs, so a PR that skips a job still
+  # gets a conclusion here; fails when anything it gates on failed or was
+  # cancelled. Keep this job's NAME stable — branch protection points at it.
+  ci:
+    name: Lint, typecheck, test, build
+    needs: [changes, code, docs]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on upstream jobs
+        env:
+          RESULTS: ${{ needs.changes.result }} ${{ needs.code.result }} ${{ needs.docs.result }}
+        run: |
+          set -euo pipefail
+          echo "upstream results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::upstream job concluded '$r'"; exit 1 ;;
+            esac
+          done

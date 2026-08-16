@@ -1,0 +1,94 @@
+/*
+ * Schemat docs design tokens.
+ *
+ * Every text colour here is verified >= 4.5:1 against --s-bg, --s-surface and
+ * --s-raised in both themes by test/contrast.test.ts, which parses THIS file.
+ * Editing a hex without re-checking contrast fails the test suite.
+ */
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --s-bg: #0a0a0a;
+  --s-surface: #141414;
+  --s-raised: #1f1f1f;
+  --s-border: #262626;
+  --s-border-strong: #8a8a8a; /* 5.73:1 on bg */
+  --s-text: #a3a3a3; /* worst surface 6.53:1 */
+  --s-text-strong: #fafafa; /* 15.79:1 */
+  --s-text-dim: #8a8a8a; /* 4.77:1 */
+  --s-accent: #38bdf8; /* 7.69:1 */
+  --s-link: #7dd3fc; /* 9.89:1 */
+  --s-pk: #fbbf24; /* 9.87:1 */
+  --s-fk: #a78bfa; /* 6.06:1 */
+  --s-ok: #4ade80; /* 9.46:1 */
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --s-bg: #fafafa;
+  --s-surface: #ffffff;
+  --s-raised: #f0f0f0;
+  --s-border: #e5e5e5;
+  --s-border-strong: #8a8a8a; /* 3.31:1 */
+  --s-text: #525252; /* 6.86:1 */
+  --s-text-strong: #0a0a0a; /* 17.37:1 */
+  --s-text-dim: #666666; /* 5.04:1 */
+  --s-accent: #075985; /* 6.64:1 */
+  --s-link: #0369a1; /* 5.21:1 */
+  --s-pk: #92400e; /* 6.22:1 */
+  --s-fk: #6d28d9; /* 6.23:1 */
+  --s-ok: #166534; /* 6.26:1 — NOT #15803d, which is 4.07:1 on --s-raised */
+}
+
+:root {
+  --s-font: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --s-text-xs: 0.75rem;
+  --s-text-sm: 0.8125rem;
+  --s-text-base: 0.875rem;
+  --s-text-lg: 1rem;
+  --s-text-xl: 1.125rem;
+  --s-text-2xl: 1.375rem;
+  --s-text-3xl: 1.75rem;
+  --s-text-4xl: 2.25rem;
+  --s-leading-body: 1.6;
+  --s-leading-heading: 1.25;
+  --s-space-1: 0.25rem;
+  --s-space-2: 0.5rem;
+  --s-space-3: 0.75rem;
+  --s-space-4: 1rem;
+  --s-space-6: 1.5rem;
+  --s-space-8: 2rem;
+  --s-space-12: 3rem;
+  --s-radius: 4px;
+  --s-motion: 150ms;
+  --s-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --s-content-width: 45rem;
+}
+
+/* Starlight token overrides — point --sl-* at ours, no !important. */
+:root {
+  --sl-font: var(--s-font);
+  --sl-font-mono: var(--s-font);
+  --sl-color-bg: var(--s-bg);
+  --sl-color-bg-nav: var(--s-bg);
+  --sl-color-bg-sidebar: var(--s-bg);
+  --sl-color-bg-inline-code: var(--s-surface);
+  --sl-color-text: var(--s-text);
+  --sl-color-white: var(--s-text-strong);
+  --sl-color-text-accent: var(--s-accent);
+  --sl-color-accent: var(--s-accent);
+  --sl-color-accent-high: var(--s-link);
+  --sl-color-hairline: var(--s-border);
+  --sl-color-hairline-light: var(--s-border);
+  --sl-color-hairline-shade: var(--s-border);
+  --sl-content-width: var(--s-content-width);
+  --sl-text-base: var(--s-text-base);
+  --sl-line-height: var(--s-leading-body);
+  --sl-line-height-headings: var(--s-leading-heading);
+}
+
+body {
+  font-family: var(--s-font);
+  font-size: var(--s-text-base);
+}
