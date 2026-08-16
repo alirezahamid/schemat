@@ -1,6 +1,12 @@
-:root {
+/* Theme tokens. Every colour in the app comes from here — components never
+ * hardcode hex values. `data-theme` is set before first paint by the inline
+ * script in index.html and kept in sync by src/theme.ts. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #020617;
   --panel: #0f172a;
+  --panel-raised: #16233c;
   --border: #1e293b;
   --border-strong: #334155;
   --text: #e2e8f0;
@@ -9,6 +15,78 @@
   --pk: #fbbf24;
   --fk: #a78bfa;
   --uniq: #4ade80;
+
+  --node-header-from: #1e293b;
+  --node-header-to: #172033;
+  --enum-bg: #131c2e;
+  --enum-border-soft: rgba(167, 139, 250, 0.3);
+  --grid-dot: #334155;
+  --edge: #64748b;
+  --edge-active: #38bdf8;
+  --edge-label: #94a3b8;
+  --edge-label-bg: #0f172a;
+  --minimap-node: #334155;
+  --minimap-mask: rgba(2, 6, 23, 0.7);
+  --shadow-node: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --selected-glow: rgba(56, 189, 248, 0.25);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f5f9;
+  --panel: #ffffff;
+  --panel-raised: #e2e8f0;
+  --border: #cbd5e1;
+  --border-strong: #94a3b8;
+  --text: #0f172a;
+  --text-dim: #475569;
+  --accent: #0369a1;
+  --pk: #a16207;
+  --fk: #6d28d9;
+  --uniq: #15803d;
+
+  --node-header-from: #e2e8f0;
+  --node-header-to: #cbd5e1;
+  --enum-bg: #faf5ff;
+  --enum-border-soft: rgba(109, 40, 217, 0.35);
+  --grid-dot: #94a3b8;
+  --edge: #475569;
+  --edge-active: #0369a1;
+  --edge-label: #334155;
+  --edge-label-bg: #ffffff;
+  --minimap-node: #94a3b8;
+  --minimap-mask: rgba(148, 163, 184, 0.5);
+  --shadow-node: 0 4px 16px rgba(15, 23, 42, 0.12);
+  --shadow-panel: 0 2px 8px rgba(15, 23, 42, 0.12);
+  --selected-glow: rgba(3, 105, 161, 0.2);
+}
+
+/* React Flow reads these for its own chrome — override the library variables
+ * instead of fighting its stylesheet with `!important`. */
+:root {
+  --xy-background-pattern-color: var(--grid-dot);
+  --xy-controls-button-background-color: var(--panel);
+  --xy-controls-button-background-color-hover: var(--panel-raised);
+  --xy-controls-button-color: var(--text);
+  --xy-controls-button-color-hover: var(--text);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: var(--shadow-panel);
+  --xy-edge-stroke: var(--edge);
+  --xy-edge-stroke-selected: var(--edge-active);
+  --xy-edge-label-color: var(--edge-label);
+  --xy-edge-label-background-color: var(--edge-label-bg);
+  --xy-node-color: var(--text);
+  --xy-node-background-color: var(--panel);
+  --xy-node-border: 1px solid var(--border-strong);
+  --xy-handle-background-color: var(--border-strong);
+  --xy-handle-border-color: var(--panel);
+  --xy-minimap-background-color: var(--panel);
+  --xy-minimap-node-background-color: var(--minimap-node);
+  --xy-minimap-mask-background-color: var(--minimap-mask);
+  --xy-selection-background-color: var(--selected-glow);
+  --xy-selection-border: 1px dashed var(--accent);
+  --xy-attribution-background-color: transparent;
 }
 
 * {
@@ -72,6 +150,47 @@ body,
   color: var(--accent);
 }
 
+/* Theme toggle (system / light / dark). */
+.theme-toggle {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  min-inline-size: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.theme-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--panel);
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.theme-btn:last-child {
+  border-right: none;
+}
+
+.theme-btn:hover {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.theme-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.theme-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* Table node */
 .table-node {
   width: 240px;
@@ -80,11 +199,11 @@ body,
   border-radius: 8px;
   overflow: hidden;
   font-size: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-node);
 }
 
 .table-header {
-  background: linear-gradient(180deg, #1e293b, #172033);
+  background: linear-gradient(180deg, var(--node-header-from), var(--node-header-to));
   padding: 8px 12px;
   font-weight: 600;
   color: var(--text);
@@ -209,7 +328,7 @@ body,
 /* Sticky click-selected table gets a clear accent outline. */
 .table-node.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 4px 20px rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 20px var(--selected-glow);
 }
 
 /* Search box in the top bar. */
@@ -229,6 +348,11 @@ body,
   border-color: var(--accent);
 }
 
+.search:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .search::placeholder {
   color: var(--text-dim);
 }
@@ -236,12 +360,12 @@ body,
 /* Enum node. */
 .enum-node {
   width: 200px;
-  background: #131c2e;
+  background: var(--enum-bg);
   border: 1px solid var(--fk);
   border-radius: 8px;
   overflow: hidden;
   font-size: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-node);
 }
 
 .enum-header {
@@ -251,7 +375,7 @@ body,
   padding: 8px 12px;
   font-weight: 600;
   color: var(--fk);
-  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+  border-bottom: 1px solid var(--enum-border-soft);
 }
 
 .enum-tag {
@@ -282,23 +406,80 @@ body,
 
 /* Export button (top-right canvas panel). */
 .export-btn {
-  background: var(--panel, #0b1220);
-  color: var(--text, #e2e8f0);
-  border: 1px solid var(--border, #1e293b);
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-panel);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .export-btn:hover {
-  border-color: var(--accent, #38bdf8);
-  background: #111c33;
+  border-color: var(--accent);
+  background: var(--panel-raised);
+}
+
+.export-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .export-btn:active {
   transform: translateY(1px);
+}
+
+/* Canvas controls (zoom in/out, fit view, lock). The library ships a white
+ * panel with near-white icons, which was unreadable on the dark canvas — these
+ * pin the panel and icon colours to the active theme's tokens. */
+.react-flow__controls {
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  width: 28px;
+  height: 28px;
+  color: var(--text);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.react-flow__controls-button:hover {
+  color: var(--accent);
+}
+
+.react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.react-flow__controls-button:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+/* Interaction lock: the pressed (locked) state reads as active, not just as a
+ * different glyph, so the current state is obvious in both themes. */
+.react-flow__controls-interactive[aria-pressed="true"],
+.react-flow__controls-interactive.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Edge labels rendered by React Flow's built-in text nodes. */
+.react-flow__edge-text {
+  fill: var(--edge-label);
+}
+
+.react-flow__edge-textbg {
+  fill: var(--edge-label-bg);
 }

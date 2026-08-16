@@ -14,6 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ThemeToggle } from "./ThemeToggle";
 import { EnumNode } from "./canvas/EnumNode";
 import { TableNode } from "./canvas/TableNode";
 import { exportSvg } from "./canvas/export";
@@ -158,7 +159,7 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
         current.map((e) => {
           const active = focus === null || e.source === focus || e.target === focus;
           const opacity = active ? 1 : DIM_OPACITY;
-          const stroke = active && focus !== null ? "#38bdf8" : "#64748b";
+          const stroke = active && focus !== null ? "var(--edge-active)" : "var(--edge)";
           const wasAnimated = baseAnimated.current.get(e.id) ?? false;
           const animated = focus !== null && active ? true : wasAnimated;
           if (
@@ -245,7 +246,9 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
       minZoom={0.1}
       proOptions={{ hideAttribution: true }}
     >
-      <Background color="#1e293b" gap={20} />
+      {/* No colour props on Background/MiniMap: React Flow's `*-props` custom
+          properties would beat the theme tokens, freezing them at one theme. */}
+      <Background gap={20} />
       <Controls />
       <Panel position="top-right">
         <button
@@ -257,13 +260,7 @@ function Canvas({ schema, query }: { schema: IRSchema; query: string }) {
           ↓ Export SVG
         </button>
       </Panel>
-      <MiniMap
-        pannable
-        zoomable
-        nodeColor="#334155"
-        maskColor="rgba(2,6,23,0.7)"
-        style={{ background: "#0f172a" }}
-      />
+      <MiniMap pannable zoomable />
     </ReactFlow>
   );
 }
@@ -283,6 +280,7 @@ export default function App() {
           <p>
             No schema loaded. Run <code>schemat dev</code> in a project with a Prisma schema.
           </p>
+          <ThemeToggle />
         </div>
       </div>
     );
@@ -304,6 +302,7 @@ export default function App() {
             {schema.tables.length} tables · {schema.relations.length} relations ·{" "}
             {schema.enums.length} enums
           </span>
+          <ThemeToggle />
         </header>
         <div className="canvas-wrap">
           <Canvas schema={schema} query={query} />
