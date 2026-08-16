@@ -1,9 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Schemat</title>
+    <script>
+      // Resolve the theme before first paint so a dark-mode user never sees a
+      // white flash. Mirrors src/theme.ts — keep the key and attribute in sync.
+      (function () {
+        var saved = null;
+        try {
+          saved = localStorage.getItem("schemat:theme");
+        } catch (e) {
+          // Storage disabled — fall through to the system preference.
+        }
+        var prefersDark =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var theme = saved === "light" || saved === "dark" ? saved : prefersDark ? "dark" : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

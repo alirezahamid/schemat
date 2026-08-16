@@ -115,9 +115,12 @@ export function schemaToGraph(schema: IRSchema): {
             : "1:N",
       animated: rel.cardinality === "many-to-many",
       data: { fromTable: rel.fromTable, toTable: rel.toTable, fromColumn, toColumn },
-      style: { stroke: "#64748b", strokeWidth: 1.5 },
-      labelStyle: { fill: "#94a3b8", fontSize: 10 },
-      labelBgStyle: { fill: "#0f172a" },
+      // Theme tokens, not hex: `var()` in an inline style still resolves
+      // against the active `data-theme` scope, so edges follow the theme
+      // without re-deriving the graph.
+      style: { stroke: "var(--edge)", strokeWidth: 1.5 },
+      labelStyle: { fill: "var(--edge-label)", fontSize: 10 },
+      labelBgStyle: { fill: "var(--edge-label-bg)" },
     };
   });
 
