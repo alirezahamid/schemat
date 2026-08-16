@@ -17,6 +17,10 @@ export default defineConfig({
           href: "https://github.com/alirezahamid/schemat",
         },
       ],
+      components: {
+        // Two-state button instead of the stock auto/light/dark <select>.
+        ThemeSelect: "./src/components/ThemeToggle.astro",
+      },
       customCss: [
         "@fontsource/ibm-plex-mono/latin-400.css",
         "@fontsource/ibm-plex-mono/latin-500.css",

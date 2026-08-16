@@ -1,0 +1,112 @@
+---
+/**
+ * Replaces Starlight's three-option theme <select> (auto / light / dark) with a
+ * single button.
+ *
+ * "Auto" survives as the *initial* state rather than as a menu entry: the
+ * inline script in Starlight's ThemeProvider still seeds `data-theme` from
+ * `prefers-color-scheme` before first paint, and the media query below keeps
+ * following the system until the first click. Clicking pins an explicit choice
+ * under Starlight's own `starlight-theme` storage key, so the rest of Starlight
+ * needs no changes.
+ *
+ * Which icon shows is decided in CSS off `:root[data-theme]`, not in JS, so
+ * there is no icon flash on load.
+ */
+import { Icon } from "@astrojs/starlight/components";
+---
+
+<schemat-theme-toggle>
+	<button type="button" aria-pressed="false" aria-label="Toggle dark theme">
+		<Icon name="sun" class="sun" size="1rem" />
+		<Icon name="moon" class="moon" size="1rem" />
+	</button>
+</schemat-theme-toggle>
+
+{/*
+	Inlined so the pressed state matches the theme ThemeProvider already set.
+	Starlight renders this component twice (header + mobile menu), hence the
+	querySelectorAll.
+*/}
+<script is:inline>
+	document.querySelectorAll("schemat-theme-toggle button").forEach((button) => {
+		button.setAttribute(
+			"aria-pressed",
+			String(document.documentElement.dataset.theme === "dark"),
+		);
+	});
+</script>
+
+<script>
+	/** Same key Starlight's own theme select writes to. */
+	const storageKey = "starlight-theme";
+
+	/** Header and mobile menu each render one; keep both in sync. */
+	function apply(theme: "dark" | "light"): void {
+		document.documentElement.dataset.theme = theme;
+		for (const button of document.querySelectorAll("schemat-theme-toggle button")) {
+			button.setAttribute("aria-pressed", String(theme === "dark"));
+		}
+	}
+
+	class SchematThemeToggle extends HTMLElement {
+		constructor() {
+			super();
+			apply(document.documentElement.dataset.theme === "light" ? "light" : "dark");
+
+			this.querySelector("button")?.addEventListener("click", () => {
+				const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+				apply(next);
+				localStorage.setItem(storageKey, next);
+			});
+
+			// Keep following the system until an explicit choice is stored.
+			matchMedia("(prefers-color-scheme: light)").addEventListener("change", (event) => {
+				if (localStorage.getItem(storageKey)) return;
+				apply(event.matches ? "light" : "dark");
+			});
+		}
+	}
+
+	customElements.define("schemat-theme-toggle", SchematThemeToggle);
+</script>
+
+<style>
+	button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--s-space-2);
+		border: 1px solid transparent;
+		border-radius: var(--s-radius);
+		background-color: transparent;
+		color: var(--s-text);
+		cursor: pointer;
+		transition:
+			color var(--s-motion) var(--s-ease),
+			border-color var(--s-motion) var(--s-ease);
+	}
+
+	button:hover {
+		color: var(--s-text-strong);
+		border-color: var(--s-border-strong);
+	}
+
+	button:focus-visible {
+		outline: 2px solid var(--s-accent);
+		outline-offset: 2px;
+	}
+
+	/* One icon at a time, chosen by the theme the page is already in. */
+	.sun {
+		display: none;
+	}
+
+	:global(:root[data-theme="dark"]) .sun {
+		display: block;
+	}
+
+	:global(:root[data-theme="dark"]) .moon {
+		display: none;
+	}
+</style>

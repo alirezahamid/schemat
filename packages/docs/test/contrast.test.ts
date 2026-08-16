@@ -70,7 +70,7 @@ const NON_TEXT_MIN = 3.0; // WCAG AA, UI component boundaries
 
 describe.each(Object.entries(THEMES))("%s theme", (_theme, palette) => {
   it("declares every surface and text role", () => {
-    for (const token of [...SURFACES, ...TEXT_ROLES, "--s-border-strong"]) {
+    for (const token of [...SURFACES, ...TEXT_ROLES, "--s-border-strong", "--s-on-accent"]) {
       expect(palette[token], `${token} missing from tokens.css`).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
@@ -86,6 +86,23 @@ describe.each(Object.entries(THEMES))("%s theme", (_theme, palette) => {
         `${role} (${fg}) on ${surface} (${bg}) = ${ratio.toFixed(2)}:1`,
       ).toBeGreaterThanOrEqual(TEXT_MIN);
     }
+  });
+
+  /*
+   * --s-accent is a fill as well as a text colour: the current sidebar entry,
+   * the hero CTA and the skip link all paint it as a background. Text on those
+   * sits on the fill, not on a surface, so --s-on-accent is checked here and
+   * deliberately kept out of TEXT_ROLES (it is never used on --s-bg).
+   */
+  it(`--s-on-accent is >= ${TEXT_MIN}:1 on --s-accent`, () => {
+    const fg = palette["--s-on-accent"];
+    const bg = palette["--s-accent"];
+    if (!fg || !bg) throw new Error("missing on-accent/accent token");
+    const ratio = contrast(fg, bg);
+    expect(
+      Number(ratio.toFixed(2)),
+      `--s-on-accent (${fg}) on --s-accent (${bg}) = ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(TEXT_MIN);
   });
 
   it(`--s-border-strong is >= ${NON_TEXT_MIN}:1 on --s-bg`, () => {

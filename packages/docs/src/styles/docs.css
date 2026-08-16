@@ -11,8 +11,24 @@
   --sl-color-black: var(--s-bg);
 }
 
-a {
+/*
+ * Starlight ships its own rules inside @layer starlight.*; this file is
+ * unlayered, so ANY selector here beats them regardless of specificity. A bare
+ * `a` therefore also repainted links that sit on an accent fill — the current
+ * sidebar entry, the hero CTA, the skip link — leaving --s-link on --s-accent
+ * (1.3:1 in the light theme). Those opt out, then get the pairing stated
+ * explicitly below.
+ */
+a:not(.sl-link-button, [aria-current="page"], .sl-skip-link) {
   color: var(--s-link);
+}
+
+/* Text ON --s-accent rather than on a page surface. */
+.sl-link-button.primary,
+.sl-link-button.primary:hover,
+.sidebar a[aria-current="page"],
+.sl-skip-link {
+  color: var(--s-on-accent);
 }
 
 .site-title,
@@ -56,4 +72,16 @@ a {
 
 .hero .tagline {
   color: var(--s-text);
+}
+
+/*
+ * Starlight puts `padding-block: clamp(2.5rem, 1rem + 10vmin, 10rem)` on the
+ * hero from 50rem up, which on a tall viewport leaves ~100px of dead space
+ * between the CTA row and the prose below. Keep the top breathing room, cut
+ * the bottom.
+ */
+@media (min-width: 50rem) {
+  .hero {
+    padding-bottom: clamp(var(--s-space-4), calc(0.5rem + 3vmin), var(--s-space-12));
+  }
 }
