@@ -1,6 +1,6 @@
 {
   "name": "@schemat/parser-sql",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SQL DDL parser for Schemat (CREATE TABLE -> IR).",
   "license": "MIT",
   "type": "module",

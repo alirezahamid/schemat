@@ -1,5 +1,68 @@
 # @schemat/cli
 
+## 0.2.1
+
+### Patch Changes
+
+- [#42](https://github.com/alirezahamid/schemat/pull/42) [`c74d0c8`](https://github.com/alirezahamid/schemat/commit/c74d0c88a1a279b525f263726799e278e0ed4a78) Thanks [@alirezahamid](https://github.com/alirezahamid)! - Make every CLI suggestion copy-pasteable and stop `dev` crashing on a busy port.
+
+  - Suggestions now carry the subcommand you ran and the `--root` you passed, so
+    the monorepo hint prints `schemat dev --root apps/identity-service` instead of
+    a bare `schemat --root …` that fails with `unknown option '--root'`.
+  - `schemat dev` reports a clean, actionable message when the port is in use
+    instead of dumping a raw Node stack trace, and `--port 0` now prints the port
+    the OS actually assigned.
+  - `schemat init` parses before writing `schemat.config.json`, so a failed init
+    no longer leaves behind a config that breaks later commands.
+  - Monorepo suggestions sort naturally (`svc2` before `svc10`) and truncate after
+    10 entries.
+  - TypeORM detection now recognises entities whose decorators are re-exported
+    through a shared barrel, and services in a workspace where `typeorm` is
+    hoisted to the root `package.json`.
+  - The `--root` you pass is validated up front, so a typo reports the bad path
+    instead of the misleading "no schema found".
+  - `schemat dev` rejects a non-numeric `--port` with a message naming the flag,
+    and Prisma parse failures name the schema that failed before the raw `P1012`
+    text.
+  - `schemat export` prints an absolute output path when the relative one would
+    climb out of the working directory.
+
+- [#45](https://github.com/alirezahamid/schemat/pull/45) [`8a35732`](https://github.com/alirezahamid/schemat/commit/8a357327f7edf88f833d86607379ee0661c39a56) Thanks [@alirezahamid](https://github.com/alirezahamid)! - Give the CLI colour, symbols and a readable visual hierarchy — presentation only, no behaviour change.
+
+  - Success, warning and error states share one symbol and colour vocabulary
+    across every command, so `snapshot`, `init`, `check`, `diff`, `export` and
+    `dev` no longer each invent their own prefix.
+  - `check` and `diff` colour additions green, removals red and modifications
+    yellow, on top of the renderer's existing `+`/`-`/`~` markers. The renderer
+    still emits plain text; the CLI styles it as a post-processing pass.
+  - `snapshot` and `export` lead with the path written and drop counts to a muted
+    second line, with correct singular/plural (`1 relation`, not `1 relations`).
+  - `dev` prints a calm startup banner with the URL and watch root, then one line
+    per rebuild instead of per-file noise.
+  - Errors are structured as headline, detail, then suggestion — including
+    multi-line messages from an underlying parser, which are no longer bolded as
+    a single wall of text.
+  - Colour is decided per stream, so redirecting stdout does not change how stderr
+    is styled. `NO_COLOR` (any value), `FORCE_COLOR` (including `0`) and
+    `TERM=dumb` are all honoured, and symbols fall back to ASCII outside a UTF-8
+    locale.
+  - `--format json` and `--format markdown` stay byte-clean even when colour is
+    forced on, and copy-pasteable `schemat …` suggestions never carry escape
+    sequences, so pasting one from coloured output runs verbatim.
+
+- Updated dependencies [[`c74d0c8`](https://github.com/alirezahamid/schemat/commit/c74d0c88a1a279b525f263726799e278e0ed4a78), [`f2cb384`](https://github.com/alirezahamid/schemat/commit/f2cb384d13a7d0219ad1add60d832831e67bf013)]:
+  - @schemat/render@0.2.1
+  - @schemat/parser-typeorm@0.2.1
+  - @schemat/parser-prisma@0.2.1
+  - @schemat/web@0.2.1
+  - @schemat/core@0.2.1
+  - @schemat/parser-dbml@0.2.1
+  - @schemat/parser-drizzle@0.2.1
+  - @schemat/parser-mikroorm@0.2.1
+  - @schemat/parser-mongoose@0.2.1
+  - @schemat/parser-sequelize@0.2.1
+  - @schemat/parser-sql@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

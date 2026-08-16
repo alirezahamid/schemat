@@ -1,5 +1,17 @@
 # @schemat/web
 
+## 0.2.1
+
+### Patch Changes
+
+- [#44](https://github.com/alirezahamid/schemat/pull/44) [`f2cb384`](https://github.com/alirezahamid/schemat/commit/f2cb384d13a7d0219ad1add60d832831e67bf013) Thanks [@alirezahamid](https://github.com/alirezahamid)! - Follow the system colour scheme with a remembered manual override, and fix the canvas control contrast.
+
+  The zoom/fit/lock controls rendered as a white panel with light-grey icons on the dark canvas, which made them hard to read. All colours are now theme tokens, and React Flow's `--xy-*` variables map onto them.
+
+- Updated dependencies [[`c74d0c8`](https://github.com/alirezahamid/schemat/commit/c74d0c88a1a279b525f263726799e278e0ed4a78)]:
+  - @schemat/render@0.2.1
+  - @schemat/core@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
