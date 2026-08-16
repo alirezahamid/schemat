@@ -12,6 +12,7 @@ import { sqlParser } from "@schemat/parser-sql";
 import { typeormParser } from "@schemat/parser-typeorm";
 import { loadConfiguredParsers } from "./config";
 import { type Invocation, suggestCommand } from "./suggest";
+import { warning } from "./ui";
 
 /**
  * Built-in parsers in auto-detection priority order (specific → weak).
@@ -46,7 +47,7 @@ async function parsersFor(projectPath: string): Promise<SchemaParser[]> {
   if (cached) return cached;
 
   const { parsers: plugins, errors } = await loadConfiguredParsers(key);
-  for (const e of errors) console.error(`Warning: ${e}`);
+  for (const e of errors) warning(String(e));
 
   // Plugins first so a local override can win detection, then built-ins.
   // Dedup by name (plugin wins).

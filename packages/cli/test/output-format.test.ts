@@ -252,3 +252,35 @@ describe("colour and symbol environment rules", () => {
     expect(symbol("warning")).toBe("⚠");
   });
 });
+
+/**
+ * Every user-facing message must go through `ui.ts`, which owns the per-stream
+ * colour decision and the symbol vocabulary. A bare `console.error` bypasses
+ * both: it ignores NO_COLOR, ignores whether the stream is a TTY, and prints
+ * without the symbol every other message carries.
+ *
+ * The plugin-load warning in `schema-source.ts` was the last such writer. This
+ * test fails if any of them come back.
+ */
+describe("all CLI output goes through ui.ts", () => {
+  it("no source file writes directly to console", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const srcDir = path.join(__dirname, "..", "src");
+
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = path.join(dir, entry);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (entry.endsWith(".ts")) files.push(full);
+      }
+    };
+    walk(srcDir);
+
+    const offenders = files.filter((f) =>
+      /\bconsole\.(log|warn|error|info|debug)\s*\(/.test(readFileSync(f, "utf8")),
+    );
+
+    expect(offenders.map((f) => path.relative(srcDir, f))).toEqual([]);
+  });
+});
