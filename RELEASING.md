@@ -104,11 +104,9 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ### The moving `v0` Action tag
 
-The bundled GitHub Action is meant to be consumed as `alirezahamid/schemat@v0`
-(a moving major tag). **That tag does not exist yet** — the README and the
-example workflow pin `@main` until it does. Create it with the next release,
-then point it at each new release commit so consumers get updates without
-changing their workflow:
+The bundled GitHub Action is consumed as `alirezahamid/schemat@v0` (a moving
+major tag). It currently points at the `0.2.1` release commit. After each
+release, move it so consumers get updates without changing their workflow:
 
 ```bash
 git tag -f v0 && git push origin v0 --force

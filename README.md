@@ -121,14 +121,14 @@ Snapshot your schema and commit it, then gate PRs with the bundled Action:
 
 ```yaml
 # .github/workflows/schema-drift.yml
-- uses: alirezahamid/schemat@main
+- uses: alirezahamid/schemat@v0
   with:
     root: "."
 ```
 
-The moving `v0` tag does not exist yet — it is created with the next release.
-Until then pin `@main` (or a commit SHA, which is what you want in a
-security-sensitive repo anyway).
+`v0` is a moving tag that follows the latest 0.x release. Pin a commit SHA
+instead if you want the Action frozen, which is what you want in a
+security-sensitive repo anyway.
 
 It comments the diff on the PR and fails the job when docs are stale. See
 [`examples/github-workflow/schema-drift.yml`](./examples/github-workflow/schema-drift.yml).
