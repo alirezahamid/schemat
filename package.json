@@ -4,7 +4,7 @@
   "private": true,
   "description": "Git-native database schema documentation. Live, interactive ER diagrams from your repo.",
   "license": "MIT",
-  "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>",
+  "author": "Alireza Hamid <hi@ahamid.me>",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=22"
