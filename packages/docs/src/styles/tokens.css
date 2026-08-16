@@ -81,6 +81,7 @@
   --sl-color-accent-high: var(--s-link);
   --sl-color-hairline: var(--s-border);
   --sl-color-hairline-light: var(--s-border);
+  --sl-color-hairline-shade: var(--s-border);
   --sl-content-width: var(--s-content-width);
   --sl-text-base: var(--s-text-base);
   --sl-line-height: var(--s-leading-body);
