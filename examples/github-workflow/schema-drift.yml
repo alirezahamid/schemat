@@ -29,9 +29,9 @@ jobs:
         with:
           node-version: 22
       - name: Check schema drift
-        # Pin a tag or SHA once one exists; `v0` is published with the next
-        # release. `@main` tracks the default branch in the meantime.
-        uses: alirezahamid/schemat@main
+        # `v0` is a moving tag that follows the latest 0.x release.
+        # Pin a commit SHA instead to freeze the Action.
+        uses: alirezahamid/schemat@v0
         with:
           root: "."
           # version: latest
