@@ -16,7 +16,7 @@ Schemat is pre-1.0. Security fixes land on the latest published `0.x` release.
 Report privately via GitHub Security Advisories:
 <https://github.com/alirezahamid/schemat/security/advisories/new>
 
-Or email **alirezahamid1996@gmail.com** with:
+Or email **hi@ahamid.me** with:
 
 - a description of the issue and its impact,
 - steps to reproduce (a minimal schema or command),
