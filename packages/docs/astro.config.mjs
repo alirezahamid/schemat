@@ -4,7 +4,7 @@ import { defineConfig } from "astro/config";
 
 // Static output (default). No adapter: the site is deployed as static files.
 export default defineConfig({
-  site: "https://schemat.dev",
+  site: "https://schemat.ahamid.me",
   integrations: [
     starlight({
       title: "Schemat",
