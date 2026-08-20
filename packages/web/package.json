@@ -20,11 +20,11 @@
     "@xyflow/react": "12.3.6",
     "elkjs": "0.12.0",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@types/react": "18.3.17",
-    "@types/react-dom": "18.3.5",
+    "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "4.3.4",
     "typescript": "5.7.2",
     "vite": "5.4.11"
