@@ -22,7 +22,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@dbml/core": "3.13.1",
+    "@dbml/core": "10.1.1",
     "@schemat/core": "workspace:*"
   },
   "devDependencies": {

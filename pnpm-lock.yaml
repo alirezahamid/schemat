@@ -126,8 +126,8 @@ importers:
   packages/parser-dbml:
     dependencies:
       '@dbml/core':
-        specifier: 3.13.1
-        version: 3.13.1
+        specifier: 10.1.1
+        version: 10.1.1
       '@schemat/core':
         specifier: workspace:*
         version: link:../core
@@ -743,12 +743,12 @@ packages:
     resolution: {integrity: sha512-kzyuwOAQnXJNLS9PSyrk0CWk35nWJW/zl/6KvnTBMFK65gm7U1/Z5BqjxeapjZCIhQcM/DsrEmcbRwDyXyXK4A==}
     engines: {node: '>=14'}
 
-  '@dbml/core@3.13.1':
-    resolution: {integrity: sha512-JYSQBplpcwvlWNF2SQKcP8yQS+OONp6zIeNnnp2yMlbGiS8neeQA/XlLpGaOg0/Pyo4ooTZfZ10Q7Wr+N34HAQ==}
+  '@dbml/core@10.1.1':
+    resolution: {integrity: sha512-okz4w1QMLOOqFXe7gEjBMMmbyNnVJrS/MNTECoMuGzWEibUplCRYuPzpuU4TxjQ/Ag1xf+fjnmJiQXM9dAo3+Q==}
     engines: {node: '>=16'}
 
-  '@dbml/parse@3.14.1':
-    resolution: {integrity: sha512-I906RBlLF04IWQlMUw10EIKimafZ4STb86BC8hGnezb+wJqtAtVLAX8hfbzMDnGpjthm4jg0oddxTLFTZrk80g==}
+  '@dbml/parse@10.1.1':
+    resolution: {integrity: sha512-5diN/EBs7E3lud0vdQXcwv2CDWIB3Vhi0PyVOQv5F4UnGKjKuPnhSnSxQuxkrMSyd+nqK3ASrvuYzyVgVW3JfA==}
     engines: {node: '>=18'}
 
   '@emmetio/abbreviation@2.3.3':
@@ -3014,6 +3014,10 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
+  luxon@3.7.2:
+    resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
+    engines: {node: '>=12'}
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -3369,6 +3373,9 @@ packages:
 
   pathe@1.1.2:
     resolution: {integrity: sha512-whLdWMYL2TwI08hn8/ZqAbrVemu0LNaNNJZX73O6qaIdCTfXutsLhMkjdENX0qhsQ9uIimo4/aQOmXkoon2nDQ==}
+
+  pathe@2.0.3:
+    resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
   pathval@2.0.1:
     resolution: {integrity: sha512-//nshmD55c46FuFw26xV/xFAaB5HF9Xdap7HJBBnrKdAd6/GxDBaNA1870O79+9ueg61cZLSVc+OaFlfmObYVQ==}
@@ -4898,17 +4905,21 @@ snapshots:
 
   '@ctrl/tinycolor@4.2.0': {}
 
-  '@dbml/core@3.13.1':
+  '@dbml/core@10.1.1':
     dependencies:
-      '@dbml/parse': 3.14.1
+      '@dbml/parse': 10.1.1
       antlr4: 4.13.2
       lodash: 4.18.1
+      lodash-es: 4.18.1
+      luxon: 3.7.2
       parsimmon: 1.18.1
       pluralize: 8.0.0
 
-  '@dbml/parse@3.14.1':
+  '@dbml/parse@10.1.1':
     dependencies:
       lodash-es: 4.18.1
+      luxon: 3.7.2
+      pathe: 2.0.3
 
   '@emmetio/abbreviation@2.3.3':
     dependencies:
@@ -7075,6 +7086,8 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
+  luxon@3.7.2: {}
+
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -7706,6 +7719,8 @@ snapshots:
   path-type@4.0.0: {}
 
   pathe@1.1.2: {}
+
+  pathe@2.0.3: {}
 
   pathval@2.0.1: {}
 
