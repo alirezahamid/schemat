@@ -328,23 +328,23 @@ importers:
         version: link:../render
       '@xyflow/react':
         specifier: 12.3.6
-        version: 12.3.6(@types/react@18.3.17)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 12.3.6(@types/react@19.2.18)(react-dom@18.3.1(react@19.2.8))(react@19.2.8)
       elkjs:
         specifier: 0.12.0
         version: 0.12.0
       react:
-        specifier: 18.3.1
-        version: 18.3.1
+        specifier: 19.2.8
+        version: 19.2.8
       react-dom:
         specifier: 18.3.1
-        version: 18.3.1(react@18.3.1)
+        version: 18.3.1(react@19.2.8)
     devDependencies:
       '@types/react':
-        specifier: 18.3.17
-        version: 18.3.17
+        specifier: 19.2.18
+        version: 19.2.18
       '@types/react-dom':
         specifier: 18.3.5
-        version: 18.3.5(@types/react@18.3.17)
+        version: 18.3.5(@types/react@19.2.18)
       '@vitejs/plugin-react':
         specifier: 4.3.4
         version: 4.3.4(vite@5.4.11(@types/node@24.13.3)(lightningcss@1.33.0))
@@ -1975,16 +1975,13 @@ packages:
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
 
-  '@types/prop-types@15.7.15':
-    resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
-
   '@types/react-dom@18.3.5':
     resolution: {integrity: sha512-P4t6saawp+b/dFrUr2cvkVsfvPguwsxtH6dNIYRllMsefqFzkZk5UIjzyDOv5g1dXIPdG4Sp1yCR4Z6RCUsG/Q==}
     peerDependencies:
       '@types/react': ^18.0.0
 
-  '@types/react@18.3.17':
-    resolution: {integrity: sha512-opAQ5no6LqJNo9TqnxBKsgnkIYHozW9KSTlFVoSUJYh1Fl/sswkEoqIugRSm7tbh6pABtYjGAjW+GOS23j8qbw==}
+  '@types/react@19.2.18':
+    resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==}
 
   '@types/sax@1.2.7':
     resolution: {integrity: sha512-rO73L89PJxeYM3s3pPPjiPgVVcymqU490g0YO5n5By0k2Erzj6tay/4lr1CHAAU4JyOWd1rpQ8bCf6cZfHU96A==}
@@ -3483,8 +3480,8 @@ packages:
     resolution: {integrity: sha512-jCvmsr+1IUSMUyzOkRcvnVbX3ZYC6g9TDrDbFuFmRDq7PD4yaGbLKNQL6k2jnArV8hjYxh7hVhAZB6s9HDGpZA==}
     engines: {node: '>=0.10.0'}
 
-  react@18.3.1:
-    resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
+  react@19.2.8:
+    resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
 
   read-yaml-file@1.1.0:
@@ -5799,15 +5796,12 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
-  '@types/prop-types@15.7.15': {}
-
-  '@types/react-dom@18.3.5(@types/react@18.3.17)':
+  '@types/react-dom@18.3.5(@types/react@19.2.18)':
     dependencies:
-      '@types/react': 18.3.17
+      '@types/react': 19.2.18
 
-  '@types/react@18.3.17':
+  '@types/react@19.2.18':
     dependencies:
-      '@types/prop-types': 15.7.15
       csstype: 3.2.3
 
   '@types/sax@1.2.7':
@@ -5945,13 +5939,13 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@xyflow/react@12.3.6(@types/react@18.3.17)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@xyflow/react@12.3.6(@types/react@19.2.18)(react-dom@18.3.1(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@xyflow/system': 0.0.47
       classcat: 5.0.5
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-      zustand: 4.5.7(@types/react@18.3.17)(react@18.3.1)
+      react: 19.2.8
+      react-dom: 18.3.1(react@19.2.8)
+      zustand: 4.5.7(@types/react@19.2.18)(react@19.2.8)
     transitivePeerDependencies:
       - '@types/react'
       - immer
@@ -7776,17 +7770,15 @@ snapshots:
 
   radix3@1.1.2: {}
 
-  react-dom@18.3.1(react@18.3.1):
+  react-dom@18.3.1(react@19.2.8):
     dependencies:
       loose-envify: 1.4.0
-      react: 18.3.1
+      react: 19.2.8
       scheduler: 0.23.2
 
   react-refresh@0.14.2: {}
 
-  react@18.3.1:
-    dependencies:
-      loose-envify: 1.4.0
+  react@19.2.8: {}
 
   read-yaml-file@1.1.0:
     dependencies:
@@ -8405,9 +8397,9 @@ snapshots:
 
   url-extras@0.1.0: {}
 
-  use-sync-external-store@1.6.0(react@18.3.1):
+  use-sync-external-store@1.6.0(react@19.2.8):
     dependencies:
-      react: 18.3.1
+      react: 19.2.8
 
   util-deprecate@1.0.2: {}
 
@@ -8813,11 +8805,11 @@ snapshots:
 
   zod@4.4.3: {}
 
-  zustand@4.5.7(@types/react@18.3.17)(react@18.3.1):
+  zustand@4.5.7(@types/react@19.2.18)(react@19.2.8):
     dependencies:
-      use-sync-external-store: 1.6.0(react@18.3.1)
+      use-sync-external-store: 1.6.0(react@19.2.8)
     optionalDependencies:
-      '@types/react': 18.3.17
-      react: 18.3.1
+      '@types/react': 19.2.18
+      react: 19.2.8
 
   zwitch@2.0.4: {}
