@@ -42,7 +42,7 @@ jobs:
       # PR. When that PR is merged (changesets consumed), the same action runs
       # `pnpm release` to publish to npm and push git tags + a GitHub Release.
       - name: Create release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           version: pnpm version-packages
           publish: pnpm release
