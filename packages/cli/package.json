@@ -34,12 +34,12 @@
     "ws": "8.21.3"
   },
   "devDependencies": {
-    "@types/node": "22.18.0",
+    "@types/node": "26.6.5",
     "@types/ws": "8.18.1",
-    "tsup": "8.3.5",
-    "tsx": "4.19.2",
-    "typescript": "5.7.2",
-    "vitest": "2.1.8"
+    "tsup": "9.0.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
   },
   "author": "Alireza Hamid <hi@ahamid.me>",
   "homepage": "https://github.com/alirezahamid/schemat#readme",
