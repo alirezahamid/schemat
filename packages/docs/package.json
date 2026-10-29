@@ -21,9 +21,9 @@
     "astro": "7.2.2"
   },
   "devDependencies": {
-    "@astrojs/check": "0.9.10",
-    "typescript": "5.7.2",
-    "vitest": "2.1.8"
+    "@astrojs/check": "0.9.12",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
   },
   "author": "Ali Reza Hamid <alirezahamid1996@gmail.com>"
 }

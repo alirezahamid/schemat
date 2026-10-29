@@ -26,10 +26,10 @@
     "@prisma/internals": "6.1.0"
   },
   "devDependencies": {
-    "@types/node": "20.17.10",
-    "tsup": "8.3.5",
-    "typescript": "5.7.2",
-    "vitest": "2.1.8"
+    "@types/node": "26.6.5",
+    "tsup": "9.0.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
   },
   "author": "Alireza Hamid <hi@ahamid.me>",
   "homepage": "https://github.com/alirezahamid/schemat#readme",
